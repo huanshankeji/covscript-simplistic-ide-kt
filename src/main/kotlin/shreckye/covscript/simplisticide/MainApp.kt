@@ -105,16 +105,10 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
                     }
                 }
                 separator()
-                item("Save", "Ctrl+S") {
-                    action { save() }
-                }
-                item("Save As...", "Ctrl+Shift+S") {
-                    action { saveAs() }
-                }
+                item("Save", "Ctrl+S") { action { save() } }
+                item("Save As...", "Ctrl+Shift+S") { action { saveAs() } }
                 separator()
-                item("Exit") {
-                    action { close() }
-                }
+                item("Exit") { action { close() } }
             }
 
             menu("Edit") {
