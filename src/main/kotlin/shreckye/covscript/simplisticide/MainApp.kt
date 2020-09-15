@@ -1,24 +1,117 @@
 package shreckye.covscript.simplisticide
 
+import javafx.beans.property.SimpleObjectProperty
+import javafx.beans.property.SimpleStringProperty
 import javafx.geometry.Orientation
 import javafx.geometry.Pos
+import javafx.scene.control.Alert
+import javafx.scene.control.ButtonType
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import tornadofx.*
+import java.io.File
 
-class MainApp : App(MainView::class)
+class MainApp : App(MainFragment::class)
 
-class MainView : View("CovScript simplistic IDE") {
+class MainFragment : Fragment("CovScript simplistic IDE") {
+    val fileProperty = SimpleObjectProperty<File?>()
+    val originalContentProperty = SimpleStringProperty()
+    val contentProperty = SimpleStringProperty()
+
+    fun init(file: File?) {
+        fileProperty.set(file)
+        if (file === null)
+            initContent("")
+        else
+            initContent(file.readText())
+    }
+
+    fun initContent(contentValue: String) {
+        originalContentProperty.set(contentValue)
+        contentProperty.set(contentValue)
+    }
+
+    fun initNew() = init(null)
+
+    init {
+        initNew()
+    }
+
+    fun saveWarningIfEdited(continuation: () -> Unit) {
+        if (contentProperty.get() != originalContentProperty.get())
+            alert(
+                Alert.AlertType.WARNING, "The file has been edited. Save it?",
+                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL),
+                owner = currentWindow
+            ) {
+                when (it) {
+                    ButtonType.YES -> {
+                        save()
+                        continuation()
+                    }
+                    ButtonType.NO -> continuation()
+                    ButtonType.CANCEL -> Unit
+                }
+            }
+        else continuation()
+    }
+
+    fun save() {
+        val pathValue = fileProperty.get()
+        if (pathValue === null) saveAs() else saveAs(pathValue)
+    }
+
+    fun saveAs() {
+        val file =
+            chooseFile("Save As...", FILE_FILTERS, mode = FileChooserMode.Save, owner = currentWindow).getOrNull(0)
+        file?.let { saveAs(it) }
+    }
+
+    fun saveAs(file: File) {
+        file.writeText(contentProperty.get())
+        originalContentProperty.set(contentProperty.get())
+    }
+
     override val root = borderpane {
         top = menubar {
             menu("File") {
-                item("New", "Ctrl+N")
-                item("Open...", "Ctrl+O")
+                item("New", "Ctrl+N") {
+                    action {
+                        alert(
+                            Alert.AlertType.CONFIRMATION, "Open in a new window?",
+                            buttons = arrayOf(ButtonType.YES, ButtonType.NO),
+                            owner = currentWindow
+                        ) {
+                            when (it) {
+                                ButtonType.YES -> find<MainFragment>().openWindow(owner = null)
+                                ButtonType.NO -> {
+                                    saveWarningIfEdited {
+                                        initNew()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item("Open...", "Ctrl+O") {
+                    action {
+                        saveWarningIfEdited {
+                            val file = chooseFile("Open...", FILE_FILTERS, owner = currentWindow).getOrNull(0)
+                            file?.let { init(it) }
+                        }
+                    }
+                }
                 separator()
-                item("Save", "Ctrl+S")
-                item("Save As...", "Ctrl+Shift+S")
+                item("Save", "Ctrl+S") {
+                    action { save() }
+                }
+                item("Save As...", "Ctrl+Shift+S") {
+                    action { saveAs() }
+                }
                 separator()
-                item("Exit")
+                item("Exit") {
+                    action { close() }
+                }
             }
 
             menu("Edit") {
@@ -53,7 +146,7 @@ class MainView : View("CovScript simplistic IDE") {
             }
         }
 
-        center = textarea()
+        center = textarea(contentProperty)
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
