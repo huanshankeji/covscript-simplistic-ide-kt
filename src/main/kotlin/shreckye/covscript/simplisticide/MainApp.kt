@@ -6,6 +6,7 @@ import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
+import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import tornadofx.*
@@ -17,6 +18,8 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
     val fileProperty = SimpleObjectProperty<File?>()
     val originalContentProperty = SimpleStringProperty()
     val contentProperty = SimpleStringProperty()
+
+    lateinit var contentTextArea: TextArea
 
     fun init(file: File?) {
         fileProperty.set(file)
@@ -115,12 +118,14 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             }
 
             menu("Edit") {
-                item("Undo", "Ctrl+Z")
+                // Lambdas can't be replaced with references here for the var `contentTextArea`
+                item("Undo", "Ctrl+Z") { action { contentTextArea.undo() } }
+                item("Redo", "Ctrl+Shift+Z") { action { contentTextArea.redo() } }
                 separator()
-                item("Cut", "Ctrl+X")
-                item("Copy", "Ctrl+C")
-                item("Paste", "Ctrl+V")
-                item("Select All", "Ctrl+A")
+                item("Cut", "Ctrl+X") { action { contentTextArea.cut() } }
+                item("Copy", "Ctrl+C") { action { contentTextArea.copy() } }
+                item("Paste", "Ctrl+V") { action { contentTextArea.paste() } }
+                item("Select All", "Ctrl+A") { action { contentTextArea.selectAll() } }
             }
 
             menu("Tools") {
@@ -146,7 +151,7 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             }
         }
 
-        center = textarea(contentProperty)
+        center = textarea(contentProperty).also { contentTextArea = it }
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
