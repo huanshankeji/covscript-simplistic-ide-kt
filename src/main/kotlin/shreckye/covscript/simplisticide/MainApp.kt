@@ -1,5 +1,7 @@
 package shreckye.covscript.simplisticide
 
+import javafx.beans.property.SimpleBooleanProperty
+import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.geometry.Orientation
@@ -12,9 +14,11 @@ import javafx.scene.layout.AnchorPane.setRightAnchor
 import tornadofx.*
 import java.io.File
 
-class MainApp : App(MainFragment::class)
+class MainApp : App(MainFragment::class) {
 
-class MainFragment : Fragment("CovScript simplistic IDE") {
+}
+
+class MainFragment : Fragment(APP_NAME) {
     val fileProperty = SimpleObjectProperty<File?>()
     val originalContentProperty = SimpleStringProperty()
     val contentProperty = SimpleStringProperty()
@@ -35,12 +39,8 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
     }
 
     fun initNew() = init(null)
-
-    init {
-        initNew()
-    }
-
-    fun saveWarningIfEdited(continuation: () -> Unit) {
+    fun saveWarningIfEdited(continuation: () -> Unit) = saveWarningIfEdited(continuation, {})
+    fun saveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
         if (contentProperty.get() != originalContentProperty.get())
             alert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
@@ -53,7 +53,7 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
                         continuation()
                     }
                     ButtonType.NO -> continuation()
-                    ButtonType.CANCEL -> Unit
+                    ButtonType.CANCEL -> cancelContinuation()
                 }
             }
         else continuation()
@@ -73,6 +73,25 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
     fun saveAs(file: File) {
         file.writeText(contentProperty.get())
         originalContentProperty.set(contentProperty.get())
+    }
+
+    val sdkPath = SimpleStringProperty(run {
+        var value: String? = null
+        preferences(NODE_NAME) { value = get(SDK_PATH_KEY, null) }
+        value
+    })
+
+
+    init {
+        initNew()
+    }
+
+    override fun onBeforeShow() {
+        super.onBeforeShow()
+        // TODO: prevent shutdown with unsaved changes
+        currentWindow!!.setOnCloseRequest {
+            saveWarningIfEdited({}, it::consume)
+        }
     }
 
     override val root = borderpane {
@@ -108,7 +127,7 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
                 item("Save", "Ctrl+S") { action { save() } }
                 item("Save As...", "Ctrl+Shift+S") { action { saveAs() } }
                 separator()
-                item("Exit") { action { close() } }
+                item("Exit") { action { saveWarningIfEdited { close() } } }
             }
 
             menu("Edit") {
@@ -123,10 +142,12 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             }
 
             menu("Tools") {
-                item("Run", "Ctrl+R")
-                item("Run Configurations...")
+                item("Run", "Ctrl+R") { action { TODO() } }
+                item("Run with Options...") { action { } }
                 item("Run Debugger")
                 separator()
+                // TODO
+                item("Shell")
                 item("View Error Info")
                 item("Run Installer")
                 item("REPL")
@@ -137,7 +158,7 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             }
 
             menu("Help") {
-                item("About CovScript Simplistic IDE")
+                item("About $APP_NAME")
                 item("SDK Version Info")
                 separator()
                 item("Visit CovScript Homepage")
@@ -159,7 +180,51 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
                 label("Ln 1, Col 1")
                 separator(Orientation.VERTICAL)
                 label("Spaces: 4")
+                separator(Orientation.VERTICAL)
+                label("Font size: 12 pt")
             }, 0.0)
         }
     }
+}
+
+class RunWithOptionsFragment : Fragment("Run with Options") {
+    val programArgs = SimpleStringProperty()
+    val compileOnly = SimpleBooleanProperty()
+    val generateAst = SimpleBooleanProperty()
+    override val root = vbox {
+        form {
+            field("Program arguments") { textfield(programArgs) }
+            checkbox("Compile only", compileOnly)
+            checkbox("Generate AST", generateAst)
+        }
+        button("Run")
+    }
+}
+
+class OptionsView : View("Options") {
+    val sdkPath = SimpleStringProperty()
+    val fontSize = SimpleIntegerProperty()
+    override val root = vbox {
+        form {
+            field("SDK path") { textfield(sdkPath) }
+
+            fieldset("Editor settings") {
+
+            }
+        }
+        button("Set to default")
+
+        buttonbar {
+            button("Save")
+            button("Cancel")
+        }
+    }
+}
+
+class AboutCovScriptSimplisticIDEView : View("About $APP_NAME") {
+    override val root = TODO()
+}
+
+class AboutSdkView : View("About SDK") {
+    override val root = TODO()
 }

@@ -1,2 +1,2 @@
-# CovScript simplistic IDE in Kotlin
+# CovScript Simplistic IDE in Kotlin
 A simplistic IDE for the [Covariant Script Programming Language](https://github.com/covscript/covscript) serving as a cross-platform JVM clone of [covscript-gui](https://github.com/covscript/covscript-gui) written in Kotlin with [TornadoFX](https://tornadofx.io/)
