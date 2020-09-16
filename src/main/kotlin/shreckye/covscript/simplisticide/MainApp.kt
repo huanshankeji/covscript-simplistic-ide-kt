@@ -1,14 +1,12 @@
 package shreckye.covscript.simplisticide
 
-import javafx.beans.property.SimpleBooleanProperty
-import javafx.beans.property.SimpleIntegerProperty
-import javafx.beans.property.SimpleObjectProperty
-import javafx.beans.property.SimpleStringProperty
+import javafx.beans.property.*
 import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
+import javafx.scene.control.skin.TextAreaSkin
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import tornadofx.*
@@ -20,7 +18,7 @@ class MainApp : App(MainFragment::class) {
 
 class MainFragment : Fragment(APP_NAME) {
     val fileProperty = SimpleObjectProperty<File?>()
-    val originalContentProperty = SimpleStringProperty()
+    val savedContentProperty = SimpleStringProperty()
     val contentProperty = SimpleStringProperty()
 
     lateinit var contentTextArea: TextArea
@@ -34,14 +32,14 @@ class MainFragment : Fragment(APP_NAME) {
     }
 
     fun initContent(contentValue: String) {
-        originalContentProperty.set(contentValue)
+        savedContentProperty.set(contentValue)
         contentProperty.set(contentValue)
     }
 
     fun initNew() = init(null)
     fun saveWarningIfEdited(continuation: () -> Unit) = saveWarningIfEdited(continuation, {})
     fun saveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
-        if (contentProperty.get() != originalContentProperty.get())
+        if (contentProperty.get() != savedContentProperty.get())
             alert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
                 buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL),
@@ -59,28 +57,25 @@ class MainFragment : Fragment(APP_NAME) {
         else continuation()
     }
 
+    // TODO: EOL
     fun save() {
-        val pathValue = fileProperty.get()
-        if (pathValue === null) saveAs() else saveAs(pathValue)
+        val file = fileProperty.get()
+        if (file === null) saveAs() else saveAs(file)
     }
 
     fun saveAs() {
         val file =
             chooseFile("Save As...", FILE_FILTERS, mode = FileChooserMode.Save, owner = currentWindow).getOrNull(0)
-        file?.let { saveAs(it) }
+        file?.let {
+            fileProperty.set(it)
+            saveAs(it)
+        }
     }
 
     fun saveAs(file: File) {
         file.writeText(contentProperty.get())
-        originalContentProperty.set(contentProperty.get())
+        savedContentProperty.set(contentProperty.get())
     }
-
-    val sdkPath = SimpleStringProperty(run {
-        var value: String? = null
-        preferences(NODE_NAME) { value = get(SDK_PATH_KEY, null) }
-        value
-    })
-
 
     init {
         initNew()
@@ -170,18 +165,32 @@ class MainFragment : Fragment(APP_NAME) {
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
-                label("New file")
-                separator(Orientation.VERTICAL)
-                label("Encoding: UTF-8")
+                label(fileProperty.stringBinding {
+                    if (it === null) "New file"
+                    else it.name
+                })
             }, 0.0)
 
             setRightAnchor(hbox {
                 alignment = Pos.BASELINE_RIGHT
                 label("Ln 1, Col 1")
+                val caretPositionProperty = contentTextArea.anchor
+
+                @Suppress("UNCHECKED_CAST")
+                val skinProperty = contentTextArea.skinProperty() as ObjectProperty<TextAreaSkin>
+                label(stringBinding(caretPositionProperty, skinProperty) {
+                    val caretPosition = caretPositionProperty.get()
+                    val skin = skinProperty.get()
+                    skin
+                })
                 separator(Orientation.VERTICAL)
-                label("Spaces: 4")
+                label("LF")
                 separator(Orientation.VERTICAL)
-                label("Font size: 12 pt")
+                label("UTF-8")
+                separator(Orientation.VERTICAL)
+                label("4 spaces")
+                separator(Orientation.VERTICAL)
+                label("12 pt")
             }, 0.0)
         }
     }
@@ -217,6 +226,22 @@ class OptionsView : View("Options") {
         buttonbar {
             button("Save")
             button("Cancel")
+        }
+    }
+}
+
+class OptionsVM : ViewModel() {
+    val sdkPath = SimpleStringProperty()
+
+    val lineSeperator = SimpleObjectProperty<LineSeparator>()
+    val encoding = SimpleStringProperty()
+    val indentation = SimpleObjectProperty<Indentation>()
+
+    init {
+        preferences(NODE_NAME) {
+            sdkPath.set(get(SDK_PATH_KEY, null))
+            lineSeperator.set(get(LINE_SEPARATOR_KEY, SYSTEM_LINE_SEPARATOR_STRING).let(::))
+            encoding.set(get(ENCODING_KEY, ENCODING_DEFAULT_VALUE))
         }
     }
 }

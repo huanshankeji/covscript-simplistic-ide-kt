@@ -14,6 +14,7 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     implementation("no.tornado:tornadofx:1.7.20")
+    implementation("org.apache.commons:commons-text:1.9")
 }
 
 javafx {
