@@ -1,16 +1,17 @@
 package shreckye.covscript.simplisticide
 
-import javafx.beans.property.*
-import javafx.geometry.Orientation
-import javafx.geometry.Pos
+import javafx.beans.property.SimpleBooleanProperty
+import javafx.beans.property.SimpleObjectProperty
+import javafx.beans.property.SimpleStringProperty
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
-import javafx.scene.control.skin.TextAreaSkin
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import tornadofx.*
 import java.io.File
+import java.nio.charset.Charset
+import kotlin.reflect.KClass
 
 class MainApp : App(MainFragment::class) {
 
@@ -161,7 +162,11 @@ class MainFragment : Fragment(APP_NAME) {
             }
         }
 
-        center = textarea(contentProperty).also { contentTextArea = it }
+        center = textarea(contentProperty) {
+            font.size
+            //fontProperty().select { font.getProperty() }
+        }
+            .also { contentTextArea = it }
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
@@ -172,24 +177,24 @@ class MainFragment : Fragment(APP_NAME) {
             }, 0.0)
 
             setRightAnchor(hbox {
-                alignment = Pos.BASELINE_RIGHT
-                label("Ln 1, Col 1")
-                val caretPositionProperty = contentTextArea.anchor
+                spacing = 12.0
 
-                @Suppress("UNCHECKED_CAST")
-                val skinProperty = contentTextArea.skinProperty() as ObjectProperty<TextAreaSkin>
-                label(stringBinding(caretPositionProperty, skinProperty) {
+                // Couldn't find an efficient built-in way to get caret line and column in JavaFX or TornadoFX
+                val caretPositionProperty = contentTextArea.caretPositionProperty()
+                label(stringBinding(caretPositionProperty, contentProperty) {
                     val caretPosition = caretPositionProperty.get()
-                    val skin = skinProperty.get()
-                    skin
+                    val content = contentProperty.get()
+                    val newlineIndexSequence = sequenceOf(0) + content.asSequence().withIndex()
+                        .filter { it.value == '\n' }.map { it.index + 1 }
+                    val (line, newlineIndex) = newlineIndexSequence.withIndex().last { it.value <= caretPosition }
+                    val column = caretPosition - newlineIndex
+
+                    "Ln ${line + 1}, Col ${column + 1}"
                 })
-                separator(Orientation.VERTICAL)
+
                 label("LF")
-                separator(Orientation.VERTICAL)
                 label("UTF-8")
-                separator(Orientation.VERTICAL)
                 label("4 spaces")
-                separator(Orientation.VERTICAL)
                 label("12 pt")
             }, 0.0)
         }
@@ -210,18 +215,40 @@ class RunWithOptionsFragment : Fragment("Run with Options") {
     }
 }
 
-class OptionsView : View("Options") {
-    val sdkPath = SimpleStringProperty()
-    val fontSize = SimpleIntegerProperty()
+class OptionsView(optionsVM: OptionsVM) : View("Options") {
+    val sdkPathProperty = SimpleStringProperty(optionsVM.sdkPathProperty.get() ?: "")
     override val root = vbox {
         form {
-            field("SDK path") { textfield(sdkPath) }
+            field("SDK path") {
+                textfield(sdkPathProperty)
+            }
 
             fieldset("Editor settings") {
+                field("Line separator") {
+                    val lineSeparatorProperty = SimpleObjectProperty<LineSeparator>() // TODO
+                    combobox(lineSeparatorProperty, LineSeparator.values().toList())
+                }
+                field("File encoding") {
+                    val fileEncodingProperty = SimpleObjectProperty<Charset>() // TODO
+                    combobox(fileEncodingProperty, Charset.availableCharsets().values.toList())
+                }
+                field("Indentation") {
+                    val selected = SimpleObjectProperty<KClass<out Indentation>>(Indentation.Spaces::class) // TODO
+                    combobox(selected, Indentation::class.sealedSubclasses)
+                    field("Number") {
+                        textfield { enableWhen(selected.booleanBinding { it == Indentation.Spaces::class }) }
+                    }
+                }
+                field("Font size") {
+                    textfield { filterInput { it.controlNewText.isDouble() } }
+                }
+            }
+        }
+        button("Set to default") {
+            action {
 
             }
         }
-        button("Set to default")
 
         buttonbar {
             button("Save")
@@ -231,19 +258,40 @@ class OptionsView : View("Options") {
 }
 
 class OptionsVM : ViewModel() {
-    val sdkPath = SimpleStringProperty()
+    val sdkPathProperty = SimpleStringProperty()
 
-    val lineSeperator = SimpleObjectProperty<LineSeparator>()
-    val encoding = SimpleStringProperty()
-    val indentation = SimpleObjectProperty<Indentation>()
+    val lineSeparatorProperty = SimpleObjectProperty<LineSeparator>()
+    fun getLineSeparatorOrDefault() = lineSeparatorProperty.get() ?: DEFAULT_LINE_SEPARATOR
+    val fileEncodingProperty = SimpleObjectProperty<Charset>()
+    fun getFileEncodingOrDefault() = fileEncodingProperty.get() ?: DEFAULT_FILE_ENCODING
+    val indentationProperty = SimpleObjectProperty<Indentation>()
+    fun getIndentationOrDefault() = indentationProperty.get() ?: DEFAULT_INDENTATION
+    val fontSizeProperty = SimpleObjectProperty<Double>()
+    fun getFontSizeOrDefault() = fontSizeProperty.get() ?: DEFAULT_FONT_SIZE
 
     init {
         preferences(NODE_NAME) {
-            sdkPath.set(get(SDK_PATH_KEY, null))
-            lineSeperator.set(get(LINE_SEPARATOR_KEY, SYSTEM_LINE_SEPARATOR_STRING).let(::))
-            encoding.set(get(ENCODING_KEY, ENCODING_DEFAULT_VALUE))
+            sdkPathProperty.set(get(SDK_PATH_KEY, null))
+
+            lineSeparatorProperty.set(getObject(LINE_SEPARATOR_KEY, LineSeparator))
+            fileEncodingProperty.set(getObject(FILE_ENCODING_KEY, CharsetBiSerializer))
+            indentationProperty.set(getObject(INDENTATION_KEY, Indentation))
+            fontSizeProperty.set(getDoubleOrNull(FONT_SIZE_KEY))
         }
     }
+
+    override fun onCommit(commits: List<Commit>) {
+        preferences {
+            putOrRemoveObject(LINE_SEPARATOR_KEY, lineSeparatorProperty.get(), LineSeparator)
+            putOrRemoveObject(FILE_ENCODING_KEY, fileEncodingProperty.get(), CharsetBiSerializer)
+            putOrRemoveObject(INDENTATION_KEY, indentationProperty.get(), Indentation)
+            fontSizeProperty.get()?.let { putDouble(FONT_SIZE_KEY, it) }
+        }
+    }
+}
+
+class PreferencesOptionsVM :  OptionsVM() {
+
 }
 
 class AboutCovScriptSimplisticIDEView : View("About $APP_NAME") {
