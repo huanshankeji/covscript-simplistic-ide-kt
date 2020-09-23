@@ -1,6 +1,8 @@
 package shreckye.covscript.simplisticide
 
+import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
+import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.scene.control.Alert
@@ -8,19 +10,20 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
+import javafx.util.StringConverter
 import tornadofx.*
 import java.io.File
 import java.nio.charset.Charset
+import kotlin.concurrent.thread
 import kotlin.reflect.KClass
 
-class MainApp : App(MainFragment::class) {
-
-}
+class MainApp : App(MainFragment::class)
 
 class MainFragment : Fragment(APP_NAME) {
     val fileProperty = SimpleObjectProperty<File?>()
     val savedContentProperty = SimpleStringProperty()
     val contentProperty = SimpleStringProperty()
+    val optionsView by inject<OptionsVM>()
 
     lateinit var contentTextArea: TextArea
 
@@ -38,8 +41,7 @@ class MainFragment : Fragment(APP_NAME) {
     }
 
     fun initNew() = init(null)
-    fun saveWarningIfEdited(continuation: () -> Unit) = saveWarningIfEdited(continuation, {})
-    fun saveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
+    fun saveWarningIfEdited(continuation: () -> Unit = {}, cancelContinuation: () -> Unit = {}) {
         if (contentProperty.get() != savedContentProperty.get())
             alert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
@@ -86,7 +88,7 @@ class MainFragment : Fragment(APP_NAME) {
         super.onBeforeShow()
         // TODO: prevent shutdown with unsaved changes
         currentWindow!!.setOnCloseRequest {
-            saveWarningIfEdited({}, it::consume)
+            saveWarningIfEdited(cancelContinuation = it::consume)
         }
     }
 
@@ -150,7 +152,7 @@ class MainFragment : Fragment(APP_NAME) {
                 separator()
                 item("Build Independent Executable...")
                 item("Install Extensions...")
-                item("Options...")
+                item("Options...") { action { find<OptionsFragment>().openModal() } }
             }
 
             menu("Help") {
@@ -215,14 +217,18 @@ class RunWithOptionsFragment : Fragment("Run with Options") {
     }
 }
 
-class OptionsView(optionsVM: OptionsVM) : View("Options") {
-    val optionsProperties = optionsVM.getAll().toProperties()
-
+class OptionsFragment(val optionsVM: OptionsVM = find()) : Fragment("Options"),
+    IOptionsProperties by optionsVM.copyToProperties() {
     override val root = vbox {
         form {
-            val (sdkPathProperty, lineSeparatorProperty, fileEncodingProperty, indentationProperty, fontSizeProperty) = optionsProperties
-            field("SDK path") {
-                textfield(sdkPathProperty)
+            fieldset("Environment settings") {
+                field("SDK path") {
+                    // TODO sdkPathProperty
+                    textfield(sdkPathProperty.stringBinding { it ?: "" }.onChange {
+                        println("Changed")
+                        println(sdkPathProperty.get())
+                    })
+                }
             }
 
             fieldset("Editor settings") {
@@ -233,20 +239,34 @@ class OptionsView(optionsVM: OptionsVM) : View("Options") {
                     combobox(fileEncodingProperty, Charset.availableCharsets().values.toList())
                 }
                 field("Indentation") {
-                    val indentationType = indentationProperty.objectBinding { it::class }
-                    combobox(indentationType, Indentation::class.sealedSubclasses)
+                    val indentationTypeProperty = SimpleObjectProperty<KClass<out Indentation>>()
+                    val numberProperty = SimpleIntegerProperty()
+                    //Bindings.bindBidirectional() TODO
+                    combobox(
+                        SimpleObjectProperty(indentationProperty.get().orDefault()::class),
+                        Indentation::class.sealedSubclasses
+                    )
                     field("Number") {
-                        textfield { enableWhen(indentationType.booleanBinding { it == Indentation.Spaces::class }) }
+                        textfield(numberProperty) { enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class }) }
                     }
                 }
                 field("Font size") {
-                    textfield(fontSizeProperty) { filterInput { it.controlNewText.isDouble() } }
+                    val fontSizeStringProperty = SimpleStringProperty()
+                    Bindings.bindBidirectional(fontSizeStringProperty, fontSizeProperty,
+                        object : StringConverter<Double?>() {
+                            override fun toString(`object`: Double?): String =
+                                `object`.orFontSizeDefault().toString()
+
+                            override fun fromString(string: String): Double? =
+                                string.toDouble()
+                        })
+                    textfield(fontSizeStringProperty) { filterInput { it.controlNewText.isDouble() } }
                 }
             }
         }
         button("Set to default") {
             action {
-
+                // TODO
             }
         }
 
@@ -256,80 +276,6 @@ class OptionsView(optionsVM: OptionsVM) : View("Options") {
         }
     }
 }
-
-class Options(
-    val sdkPath: String,
-    val lineSeparator: LineSeparator?, val fileEncoding: Charset?, val indentation: Indentation?, val fontSize: Double?
-)
-
-interface IOptionsProperties {
-    val sdkPathProperty: SimpleStringProperty
-
-    val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?>
-    val fileEncodingProperty: SimpleObjectProperty<Charset?>
-    val indentationProperty: SimpleObjectProperty<Indentation?>
-    val fontSizeProperty: SimpleObjectProperty<Double?>
-
-    fun getAll() = Options(
-        sdkPathProperty.get(),
-        lineSeparatorProperty.get(), fileEncodingProperty.get(), indentationProperty.get(), fontSizeProperty.get()
-    )
-
-    fun setAll(options: Options) = with(options) {
-        sdkPathProperty.set(sdkPath)
-
-        lineSeparatorProperty.set(lineSeparator)
-        fileEncodingProperty.set(fileEncoding)
-        indentationProperty.set(indentation)
-        fontSizeProperty.set(fontSize)
-    }
-}
-
-class OptionsVM : ViewModel(), IOptionsProperties {
-    override val sdkPathProperty = SimpleStringProperty()
-
-    override val lineSeparatorProperty = SimpleObjectProperty<LineSeparator?>()
-    fun getLineSeparatorOrDefault() = lineSeparatorProperty.get() ?: DEFAULT_LINE_SEPARATOR
-    override val fileEncodingProperty = SimpleObjectProperty<Charset?>()
-    fun getFileEncodingOrDefault() = fileEncodingProperty.get() ?: DEFAULT_FILE_ENCODING
-    override val indentationProperty = SimpleObjectProperty<Indentation?>()
-    fun getIndentationOrDefault() = indentationProperty.get() ?: DEFAULT_INDENTATION
-    override val fontSizeProperty = SimpleObjectProperty<Double?>()
-    fun getFontSizeOrDefault() = fontSizeProperty.get() ?: DEFAULT_FONT_SIZE
-
-    init {
-        preferences(NODE_NAME) {
-            sdkPathProperty.set(get(SDK_PATH_KEY, null))
-
-            lineSeparatorProperty.set(getObject(LINE_SEPARATOR_KEY, LineSeparator))
-            fileEncodingProperty.set(getObject(FILE_ENCODING_KEY, CharsetBiSerializer))
-            indentationProperty.set(getObject(INDENTATION_KEY, Indentation))
-            fontSizeProperty.set(getDoubleOrNull(FONT_SIZE_KEY))
-        }
-    }
-
-    override fun onCommit(commits: List<Commit>) {
-        preferences {
-            putOrRemove(SDK_PATH_KEY, sdkPathProperty.get())
-
-            putOrRemoveObject(LINE_SEPARATOR_KEY, lineSeparatorProperty.get(), LineSeparator)
-            putOrRemoveObject(FILE_ENCODING_KEY, fileEncodingProperty.get(), CharsetBiSerializer)
-            putOrRemoveObject(INDENTATION_KEY, indentationProperty.get(), Indentation)
-            putOrRemoveDouble(FONT_SIZE_KEY, fontSizeProperty.get())
-        }
-    }
-}
-
-data class OptionsProperties(
-    override val sdkPathProperty: SimpleStringProperty = SimpleStringProperty(),
-
-    override val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?> = SimpleObjectProperty(),
-    override val fileEncodingProperty: SimpleObjectProperty<Charset?> = SimpleObjectProperty(),
-    override val indentationProperty: SimpleObjectProperty<Indentation?> = SimpleObjectProperty(),
-    override val fontSizeProperty: SimpleObjectProperty<Double?> = SimpleObjectProperty()
-) : IOptionsProperties
-
-fun Options.toProperties() = OptionsProperties().apply { setAll(this@toProperties) }
 
 class AboutCovScriptSimplisticIDEView : View("About $APP_NAME") {
     override val root = TODO()

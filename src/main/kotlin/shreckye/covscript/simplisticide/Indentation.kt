@@ -12,8 +12,6 @@ sealed class Indentation {
     }
 
     companion object : StringBiSerializer<Indentation> {
-        val DEFAULT = Spaces(4)
-
         override fun dataToString(data: Indentation): String =
             when (data) {
                 is Spaces -> "spaces(${data.n})"

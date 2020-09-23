@@ -1,6 +1,7 @@
 package shreckye.covscript.simplisticide
 
 import javafx.scene.text.Font
+import java.nio.charset.Charset
 import java.util.prefs.Preferences
 
 const val NODE_NAME = PACKAGE_NAME
@@ -9,15 +10,20 @@ const val SDK_PATH_KEY = "sdk path"
 
 const val LINE_SEPARATOR_KEY = "line separator"
 val DEFAULT_LINE_SEPARATOR = SYSTEM_LINE_SEPARATOR
+fun LineSeparator?.orDefault() = this ?: DEFAULT_LINE_SEPARATOR
 
 const val FILE_ENCODING_KEY = "file encoding"
-val DEFAULT_FILE_ENCODING = DEFAULT_CHARSET
+val DEFAULT_FILE_ENCODING: Charset = Charset.defaultCharset()
+fun Charset?.orFileEncodingDefault() = this ?: DEFAULT_FILE_ENCODING
 
 const val INDENTATION_KEY = "indentation"
-val DEFAULT_INDENTATION = Indentation.DEFAULT
+val DEFAULT_INDENTATION = Indentation.Spaces(4)
+fun Indentation?.orDefault() = this ?: DEFAULT_INDENTATION
 
 const val FONT_SIZE_KEY = "font size"
 val DEFAULT_FONT_SIZE = Font.getDefault().size
+fun Double?.orFontSizeDefault() = this ?: DEFAULT_FONT_SIZE
+
 
 fun Preferences.getOrNull(key: String) =
     get(key, null)
