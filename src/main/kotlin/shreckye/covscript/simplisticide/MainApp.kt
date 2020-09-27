@@ -2,7 +2,6 @@ package shreckye.covscript.simplisticide
 
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
-import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.scene.control.Alert
@@ -13,8 +12,6 @@ import javafx.scene.layout.AnchorPane.setRightAnchor
 import javafx.util.StringConverter
 import tornadofx.*
 import java.io.File
-import java.nio.charset.Charset
-import kotlin.concurrent.thread
 import kotlin.reflect.KClass
 
 class MainApp : App(MainFragment::class)
@@ -223,29 +220,34 @@ class OptionsFragment(val optionsVM: OptionsVM = find()) : Fragment("Options"),
         form {
             fieldset("Environment settings") {
                 field("SDK path") {
-                    // TODO sdkPathProperty
-                    textfield(sdkPathProperty.stringBinding { it ?: "" }.onChange {
-                        println("Changed")
-                        println(sdkPathProperty.get())
-                    })
+                    textfield(sdkPathProperty.bindingWithNullForDefault(""))
                 }
             }
 
             fieldset("Editor settings") {
                 field("Line separator") {
-                    combobox(lineSeparatorProperty, LineSeparator.values().toList())
+                    combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault)
                 }
                 field("File encoding") {
-                    combobox(fileEncodingProperty, Charset.availableCharsets().values.toList())
+                    combobox(fileEncodingProperty, fileEncodingsWithNullForDefault)
                 }
                 field("Indentation") {
-                    val indentationTypeProperty = SimpleObjectProperty<KClass<out Indentation>>()
-                    val numberProperty = SimpleIntegerProperty()
-                    //Bindings.bindBidirectional() TODO
-                    combobox(
-                        SimpleObjectProperty(indentationProperty.get().orDefault()::class),
-                        Indentation::class.sealedSubclasses
-                    )
+                    val properties = object {
+                        val indentationTypeProperty = indentationProperty.bidirectionalBinding(object: Converter<Indentation?, KClass<out Indentation>?> {
+                            override fun aToB(a: Indentation?): KClass<out Indentation>? =
+                                a?.let { it::class }
+                            override fun bToA(b: KClass<out Indentation>?): Indentation? =
+                                b?.let { indentationFromTypeAndNumber(it, numberProperty.get()) }
+                        })
+                        val numberProperty = indentationProperty.bidirectionalBinding(object: Converter<Indentation?, Int?> {
+                            override fun aToB(a: Indentation?): Int? =
+                                (a as? Indentation.Spaces)?.number
+
+                            override fun bToA(b: Int?): Indentation?
+                        })
+                    }
+
+                    combobox(properties.indentationTypeProperty, indentationTypesWithNullForDefault)
                     field("Number") {
                         textfield(numberProperty) { enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class }) }
                     }

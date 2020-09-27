@@ -3,8 +3,8 @@ package shreckye.covscript.simplisticide
 sealed class Indentation {
     abstract fun getString(): String
 
-    class Spaces(val n: Int) : Indentation() {
-        override fun getString(): String = " ".repeat(n)
+    class Spaces(val number: Int) : Indentation() {
+        override fun getString(): String = " ".repeat(number)
     }
 
     object Tab : Indentation() {
@@ -14,7 +14,7 @@ sealed class Indentation {
     companion object : StringBiSerializer<Indentation> {
         override fun dataToString(data: Indentation): String =
             when (data) {
-                is Spaces -> "spaces(${data.n})"
+                is Spaces -> "spaces(${data.number})"
                 is Tab -> "tab"
             }
 

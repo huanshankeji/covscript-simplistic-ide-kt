@@ -14,7 +14,7 @@ enum class LineSeparator {
 fun LineSeparator.serializeToString() = LineSeparator.dataToString(this)
 fun String.deserializeToLineSeparator() = LineSeparator.stringToData(this)
 
-val SYSTEM_LINE_SEPARATOR_STRING: String = System.lineSeparator()
+val systemLineSeparatorString: String get() = System.lineSeparator()
 fun fromLineSeparatorString(string: String) = when (string) {
     "\n" -> LineSeparator.LF
     "\r\n" -> LineSeparator.CRLF
@@ -24,4 +24,4 @@ fun fromLineSeparatorString(string: String) = when (string) {
     )
 }
 
-val SYSTEM_LINE_SEPARATOR = fromLineSeparatorString(SYSTEM_LINE_SEPARATOR_STRING)
+val systemLineSeparator get() = fromLineSeparatorString(systemLineSeparatorString)
