@@ -22,18 +22,21 @@ val fileEncodings get() = Charset.availableCharsets().values.toList()
 val fileEncodingsWithNullForDefault get() = listOf(null) + fileEncodings
 
 const val INDENTATION_KEY = "indentation"
+
 /*const val DEFAULT_SPACES_NUMBER = 4
 fun Int?.orDefaultSpacesNumber() = this?: DEFAULT_SPACES_NUMBER*/
 val DEFAULT_INDENTATION = Indentation.Spaces(4)
 fun Indentation?.orDefault() = this ?: DEFAULT_INDENTATION
 val indentationTypes = Indentation::class.sealedSubclasses
 val indentationTypesWithNullForDefault = listOf(null) + indentationTypes
-fun indentationFromTypeAndNumber(type: KClass<out Indentation>, number: Int) =
+fun indentationFromTypeAndNumber(type: KClass<out Indentation>, number: Int?): Indentation =
     when (type) {
-        Indentation.Spaces::class -> Indentation.Spaces(number)
+        Indentation.Spaces::class -> Indentation.Spaces(number!!)
         Indentation.Tab::class -> Indentation.Tab
         else -> throw IllegalArgumentException()
     }
+fun indentationFromTypeWithNullForDefaultAndNumber(type: KClass<out Indentation>?, number: Int?): Indentation? =
+    type?.let { indentationFromTypeAndNumber(it, number) }
 
 const val FONT_SIZE_KEY = "font size"
 val DEFAULT_FONT_SIZE = Font.getDefault().size

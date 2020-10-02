@@ -4,6 +4,7 @@ import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
+import javafx.beans.value.ObservableValue
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
@@ -233,23 +234,32 @@ class OptionsFragment(val optionsVM: OptionsVM = find()) : Fragment("Options"),
                 }
                 field("Indentation") {
                     val properties = object {
-                        val indentationTypeProperty = indentationProperty.bidirectionalBinding(object: Converter<Indentation?, KClass<out Indentation>?> {
-                            override fun aToB(a: Indentation?): KClass<out Indentation>? =
-                                a?.let { it::class }
-                            override fun bToA(b: KClass<out Indentation>?): Indentation? =
-                                b?.let { indentationFromTypeAndNumber(it, numberProperty.get()) }
-                        })
-                        val numberProperty = indentationProperty.bidirectionalBinding(object: Converter<Indentation?, Int?> {
-                            override fun aToB(a: Indentation?): Int? =
-                                (a as? Indentation.Spaces)?.number
+                        val indentationTypeProperty: SimpleObjectProperty<KClass<out Indentation>?> =
+                            indentationProperty.bidirectionalBinding(object :
+                                Converter<Indentation?, KClass<out Indentation>?> {
+                                override fun aToB(a: Indentation?): KClass<out Indentation>? =
+                                    a?.let { it::class }
 
-                            override fun bToA(b: Int?): Indentation?
-                        })
+                                override fun bToA(b: KClass<out Indentation>?): Indentation? =
+                                    indentationFromTypeWithNullForDefaultAndNumber(b, numberProperty.get())
+                            })
+                        val numberProperty =
+                            indentationProperty.bidirectionalBinding(object : Converter<Indentation?, Int?> {
+                                override fun aToB(a: Indentation?): Int? =
+                                    (a as? Indentation.Spaces)?.number
+
+                                override fun bToA(b: Int?): Indentation? =
+                                    indentationFromTypeWithNullForDefaultAndNumber(indentationTypeProperty.get(), b)
+                            })
                     }
+                    val indentationTypeProperty = properties.indentationTypeProperty
+                    val numberProperty = properties.numberProperty
 
-                    combobox(properties.indentationTypeProperty, indentationTypesWithNullForDefault)
+                    combobox(indentationTypeProperty, indentationTypesWithNullForDefault)
                     field("Number") {
-                        textfield(numberProperty) { enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class }) }
+                        textfield(numberProperty as SimpleObjectProperty<Int>) {
+                            enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class })
+                        }
                     }
                 }
                 field("Font size") {
