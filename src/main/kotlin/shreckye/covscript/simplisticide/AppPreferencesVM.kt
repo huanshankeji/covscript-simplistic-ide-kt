@@ -1,16 +1,13 @@
 package shreckye.covscript.simplisticide
 
 import javafx.beans.property.SimpleObjectProperty
+import shreckye.covscript.simplisticide.prefs.*
 import tornadofx.Commit
 import tornadofx.ViewModel
 import java.nio.charset.Charset
+import kotlin.reflect.KClass
 
-class Options(
-    val sdkPath: String?,
-    val lineSeparator: LineSeparator?, val fileEncoding: Charset?, val indentation: Indentation?, val fontSize: Double?
-)
-
-interface IOptionsProperties {
+interface IAppPreferenceProperties {
     val sdkPathProperty: SimpleObjectProperty<String?>
 
     val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?>
@@ -18,12 +15,12 @@ interface IOptionsProperties {
     val indentationProperty: SimpleObjectProperty<Indentation?>
     val fontSizeProperty: SimpleObjectProperty<Double?>
 
-    fun getAll() = Options(
+    fun getAll() = AppPreferences(
         sdkPathProperty.get(),
         lineSeparatorProperty.get(), fileEncodingProperty.get(), indentationProperty.get(), fontSizeProperty.get()
     )
 
-    fun setAll(options: Options) = with(options) {
+    fun setAll(appPreferences: AppPreferences) = with(appPreferences) {
         sdkPathProperty.set(sdkPath)
 
         lineSeparatorProperty.set(lineSeparator)
@@ -33,19 +30,20 @@ interface IOptionsProperties {
     }
 }
 
-data class OptionsProperties(
+data class AppPreferenceProperties(
     override val sdkPathProperty: SimpleObjectProperty<String?> = SimpleObjectProperty<String?>(),
 
     override val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?> = SimpleObjectProperty(),
     override val fileEncodingProperty: SimpleObjectProperty<Charset?> = SimpleObjectProperty(),
     override val indentationProperty: SimpleObjectProperty<Indentation?> = SimpleObjectProperty(),
     override val fontSizeProperty: SimpleObjectProperty<Double?> = SimpleObjectProperty()
-) : IOptionsProperties
+) : IAppPreferenceProperties
 
-fun Options.toProperties() = OptionsProperties().apply { setAll(this@toProperties) }
+fun AppPreferences.toProperties() =
+    AppPreferenceProperties().apply { setAll(this@toProperties) }
 
 // TODO: Encapsulate for saving, avoid changing without saving
-class OptionsVM : ViewModel(), IOptionsProperties by OptionsProperties() {
+class AppPreferencesVM : ViewModel(), IAppPreferenceProperties by AppPreferenceProperties() {
     init {
         preferences(NODE_NAME) {
             sdkPathProperty.set(get(SDK_PATH_KEY, null))
@@ -69,5 +67,5 @@ class OptionsVM : ViewModel(), IOptionsProperties by OptionsProperties() {
     }
 }
 
-fun OptionsVM.copyToProperties() =
+fun AppPreferencesVM.copyToProperties() =
     getAll().toProperties()

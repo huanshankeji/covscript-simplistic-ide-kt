@@ -1,5 +1,7 @@
 package shreckye.covscript.simplisticide
 
+import kotlin.reflect.KClass
+
 sealed class Indentation {
     abstract fun getString(): String
 
@@ -27,6 +29,8 @@ sealed class Indentation {
             }
     }
 }
+
+typealias IndentationType = KClass<out Indentation>
 
 fun Indentation.serializeToString() = Indentation.dataToString(this)
 fun String.deserializeToIndentation() = Indentation.stringToData(this)

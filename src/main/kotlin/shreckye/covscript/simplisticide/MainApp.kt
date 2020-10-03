@@ -1,19 +1,19 @@
 package shreckye.covscript.simplisticide
 
-import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
-import javafx.beans.value.ObservableValue
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
-import javafx.util.StringConverter
+import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
+import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
+import shreckye.covscript.simplisticide.tornadofx.textfield
 import tornadofx.*
 import java.io.File
-import kotlin.reflect.KClass
+import java.nio.charset.Charset
 
 class MainApp : App(MainFragment::class)
 
@@ -21,7 +21,7 @@ class MainFragment : Fragment(APP_NAME) {
     val fileProperty = SimpleObjectProperty<File?>()
     val savedContentProperty = SimpleStringProperty()
     val contentProperty = SimpleStringProperty()
-    val optionsView by inject<OptionsVM>()
+    val preferencesVM by inject<AppPreferencesVM>()
 
     lateinit var contentTextArea: TextArea
 
@@ -150,7 +150,7 @@ class MainFragment : Fragment(APP_NAME) {
                 separator()
                 item("Build Independent Executable...")
                 item("Install Extensions...")
-                item("Options...") { action { find<OptionsFragment>().openModal() } }
+                item("Preferences...") { action { find<PreferencesFragment>().openModal() } }
             }
 
             menu("Help") {
@@ -215,8 +215,8 @@ class RunWithOptionsFragment : Fragment("Run with Options") {
     }
 }
 
-class OptionsFragment(val optionsVM: OptionsVM = find()) : Fragment("Options"),
-    IOptionsProperties by optionsVM.copyToProperties() {
+class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment("Preferences"),
+    IEditAppPreferenceProperties by preferencesVM.copyToEditProperties() {
     override val root = vbox {
         form {
             fieldset("Environment settings") {
@@ -227,64 +227,58 @@ class OptionsFragment(val optionsVM: OptionsVM = find()) : Fragment("Options"),
 
             fieldset("Editor settings") {
                 field("Line separator") {
-                    combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault)
+                    combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault) {
+                        converter = toStringOnlyConverterWithNullForDefault(defaultLineSeparator, LineSeparator::name)
+                    }
                 }
                 field("File encoding") {
-                    combobox(fileEncodingProperty, fileEncodingsWithNullForDefault)
+                    combobox(fileEncodingProperty, fileEncodingsWithNullForDefault) {
+                        converter = toStringOnlyConverterWithNullForDefault(defaultFileEncoding, Charset::name)
+                    }
                 }
                 field("Indentation") {
-                    val properties = object {
-                        val indentationTypeProperty: SimpleObjectProperty<KClass<out Indentation>?> =
-                            indentationProperty.bidirectionalBinding(object :
-                                Converter<Indentation?, KClass<out Indentation>?> {
-                                override fun aToB(a: Indentation?): KClass<out Indentation>? =
-                                    a?.let { it::class }
-
-                                override fun bToA(b: KClass<out Indentation>?): Indentation? =
-                                    indentationFromTypeWithNullForDefaultAndNumber(b, numberProperty.get())
-                            })
-                        val numberProperty =
-                            indentationProperty.bidirectionalBinding(object : Converter<Indentation?, Int?> {
-                                override fun aToB(a: Indentation?): Int? =
-                                    (a as? Indentation.Spaces)?.number
-
-                                override fun bToA(b: Int?): Indentation? =
-                                    indentationFromTypeWithNullForDefaultAndNumber(indentationTypeProperty.get(), b)
-                            })
+                    combobox(indentationTypeProperty, indentationTypesWithNullForDefault) {
+                        converter = toStringOnlyConverterWithNullForDefault(defaultIndentation.toEnglishString(), IndentationType::toEnglishString)
                     }
-                    val indentationTypeProperty = properties.indentationTypeProperty
-                    val numberProperty = properties.numberProperty
-
-                    combobox(indentationTypeProperty, indentationTypesWithNullForDefault)
                     field("Number") {
-                        textfield(numberProperty as SimpleObjectProperty<Int>) {
+                        textfield(indentationNumberProperty) {
                             enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class })
+                            filterInput { it.controlNewText.isPositiveInt() }
                         }
                     }
                 }
                 field("Font size") {
-                    val fontSizeStringProperty = SimpleStringProperty()
-                    Bindings.bindBidirectional(fontSizeStringProperty, fontSizeProperty,
-                        object : StringConverter<Double?>() {
-                            override fun toString(`object`: Double?): String =
-                                `object`.orFontSizeDefault().toString()
-
-                            override fun fromString(string: String): Double? =
-                                string.toDouble()
-                        })
-                    textfield(fontSizeStringProperty) { filterInput { it.controlNewText.isDouble() } }
+                    fontSizeProperty.onChange {
+                        println("Changed: $it")
+                    }
+                    textfield(fontSizeProperty) {
+                        filterInput { it.controlNewText.isPositiveDouble() }
+                        promptText = "default: $defaultFontSize"
+                    }
                 }
             }
         }
         button("Set to default") {
-            action {
-                // TODO
-            }
+            action(::setAllNullForDefault)
         }
 
         buttonbar {
-            button("Save")
-            button("Cancel")
+            fun apply() {
+                TODO()
+            }
+            button("Save") {
+                action {
+                    apply()
+                    close()
+                }
+            }
+            button("Cancel") {
+                action { close() }
+            }
+            button("Apply") {
+                action { apply() }
+                //enableWhen { TODO() }
+            }
         }
     }
 }
