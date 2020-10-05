@@ -5,7 +5,6 @@ import shreckye.covscript.simplisticide.prefs.*
 import tornadofx.Commit
 import tornadofx.ViewModel
 import java.nio.charset.Charset
-import kotlin.reflect.KClass
 
 interface IAppPreferenceProperties {
     val sdkPathProperty: SimpleObjectProperty<String?>
@@ -45,7 +44,7 @@ fun AppPreferences.toProperties() =
 // TODO: Encapsulate for saving, avoid changing without saving
 class AppPreferencesVM : ViewModel(), IAppPreferenceProperties by AppPreferenceProperties() {
     init {
-        preferences(NODE_NAME) {
+        appPreferences {
             sdkPathProperty.set(get(SDK_PATH_KEY, null))
 
             lineSeparatorProperty.set(getObject(LINE_SEPARATOR_KEY, LineSeparator))
@@ -56,13 +55,15 @@ class AppPreferencesVM : ViewModel(), IAppPreferenceProperties by AppPreferenceP
     }
 
     override fun onCommit(commits: List<Commit>) {
-        preferences {
+        appPreferences {
             putOrRemove(SDK_PATH_KEY, sdkPathProperty.get())
 
             putOrRemoveObject(LINE_SEPARATOR_KEY, lineSeparatorProperty.get(), LineSeparator)
             putOrRemoveObject(FILE_ENCODING_KEY, fileEncodingProperty.get(), CharsetBiSerializer)
             putOrRemoveObject(INDENTATION_KEY, indentationProperty.get(), Indentation)
             putOrRemoveDouble(FONT_SIZE_KEY, fontSizeProperty.get())
+
+            flush()
         }
     }
 }

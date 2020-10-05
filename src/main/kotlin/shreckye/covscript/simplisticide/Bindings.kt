@@ -9,6 +9,11 @@ import javafx.beans.value.ObservableValue
 fun <T> ObservableValue<T>.onChange(op: (T) -> Unit) =
     addListener { _, _, newValue -> op(newValue) }
 
+fun <T> ObservableValue<T>.bindByOnChange(op: (T) -> Unit) {
+    op(value)
+    onChange(op)
+}
+
 interface Converter<A, B> {
     fun aToB(a: A): B
     fun bToA(b: B): A

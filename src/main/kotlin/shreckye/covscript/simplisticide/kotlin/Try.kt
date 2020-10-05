@@ -1,7 +1,5 @@
 package shreckye.covscript.simplisticide.kotlin
 
-import java.lang.Exception
-
 // A simplistic implementation of Scala `Try`
 sealed class Try<out T> {
     abstract fun isSuccess(): Boolean

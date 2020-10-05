@@ -163,8 +163,10 @@ class MainFragment : Fragment(APP_NAME) {
         }
 
         center = textarea(contentProperty) {
-            font.size
-            //fontProperty().select { font.getProperty() }
+            // Couldn't find an appropriate bind function
+            preferencesVM.fontSizeProperty.bindByOnChange {
+                style { fontSize = it.orFontSizeDefault().px }
+            }
         }
             .also { contentTextArea = it }
 
@@ -177,7 +179,7 @@ class MainFragment : Fragment(APP_NAME) {
             }, 0.0)
 
             setRightAnchor(hbox {
-                spacing = 12.0
+                spacing = defaultFontSize
 
                 // Couldn't find an efficient built-in way to get caret line and column in JavaFX or TornadoFX
                 val caretPositionProperty = contentTextArea.caretPositionProperty()
@@ -195,7 +197,9 @@ class MainFragment : Fragment(APP_NAME) {
                 label("LF")
                 label("UTF-8")
                 label("4 spaces")
-                label("12 pt")
+                label(preferencesVM.fontSizeProperty.stringBinding {
+                    toStringWithNullForDefault(defaultFontSize, it, Double::toString)
+                })
             }, 0.0)
         }
     }
@@ -221,7 +225,9 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
         form {
             fieldset("Environment settings") {
                 field("SDK path") {
-                    textfield(sdkPathProperty.bindingWithNullForDefault(""))
+                    textfield(sdkPathProperty.bindingWithNullForDefault("")) {
+                        promptText = "not set"
+                    }
                 }
             }
 
@@ -238,7 +244,10 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
                 }
                 field("Indentation") {
                     combobox(indentationTypeProperty, indentationTypesWithNullForDefault) {
-                        converter = toStringOnlyConverterWithNullForDefault(defaultIndentation.toEnglishString(), IndentationType::toEnglishString)
+                        converter = toStringOnlyConverterWithNullForDefault(
+                            defaultIndentation.toEnglishString(),
+                            IndentationType::toEnglishString
+                        )
                     }
                     field("Number") {
                         textfield(indentationNumberProperty) {
@@ -248,9 +257,6 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
                     }
                 }
                 field("Font size") {
-                    fontSizeProperty.onChange {
-                        println("Changed: $it")
-                    }
                     textfield(fontSizeProperty) {
                         filterInput { it.controlNewText.isPositiveDouble() }
                         promptText = "default: $defaultFontSize"
@@ -263,13 +269,29 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
         }
 
         buttonbar {
-            fun apply() {
-                TODO()
+            fun apply(): Boolean {
+                val preferences = try {
+                    getAll()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    alert(
+                        Alert.AlertType.ERROR, "Please enter valid preference values.",
+                        buttons = arrayOf(ButtonType.OK),
+                        owner = currentWindow
+                    )
+                    null
+                }
+
+                return if (preferences !== null) {
+                    preferencesVM.setAll(preferences)
+                    preferencesVM.commit()
+                    true
+                } else false
             }
             button("Save") {
                 action {
-                    apply()
-                    close()
+                    if (apply())
+                        close()
                 }
             }
             button("Cancel") {
@@ -277,7 +299,6 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
             }
             button("Apply") {
                 action { apply() }
-                //enableWhen { TODO() }
             }
         }
     }
