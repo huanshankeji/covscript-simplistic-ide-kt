@@ -1,4 +1,4 @@
-package shreckye.covscript.simplisticide.javafx.util
+package shreckye.covscript.simplisticide.javafx
 
 import javafx.util.StringConverter
 

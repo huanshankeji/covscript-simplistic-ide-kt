@@ -1,7 +1,6 @@
 package shreckye.covscript.simplisticide.tornadofx
 
 import javafx.beans.property.Property
-import javafx.beans.property.SimpleObjectProperty
 import javafx.event.EventTarget
 import javafx.scene.control.TextField
 import javafx.util.StringConverter
@@ -9,8 +8,7 @@ import tornadofx.textfield
 
 @JvmName("textfieldNullableInt")
 fun EventTarget.textfield(property: Property<Int?>, op: TextField.() -> Unit = {}) =
-    // TODO: use a converter if it doesn't work
-    textfield(property as SimpleObjectProperty<Int>, op)
+    @Suppress("UNCHECKED_CAST") textfield(property as Property<Int>, op)
 
 @JvmName("textfieldNullableDouble")
 fun EventTarget.textfield(property: Property<Double?>, op: TextField.() -> Unit = {}) =

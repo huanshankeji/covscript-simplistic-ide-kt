@@ -1,5 +1,6 @@
 package shreckye.covscript.simplisticide
 
+import VERSION
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
@@ -8,6 +9,7 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
+import javafx.scene.text.FontWeight
 import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
 import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
 import shreckye.covscript.simplisticide.tornadofx.textfield
@@ -39,7 +41,8 @@ class MainFragment : Fragment(APP_NAME) {
     }
 
     fun initNew() = init(null)
-    fun saveWarningIfEdited(continuation: () -> Unit = {}, cancelContinuation: () -> Unit = {}) {
+
+    fun showSaveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
         if (contentProperty.get() != savedContentProperty.get())
             alert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
@@ -58,7 +61,12 @@ class MainFragment : Fragment(APP_NAME) {
         else continuation()
     }
 
-    // TODO: EOL
+    fun showSaveWarningIfEditedWithContinuation(continuation: () -> Unit) =
+        showSaveWarningIfEdited(continuation, {})
+
+    fun showSaveWarningIfEditedWithCancelContinuation(cancelContinuation: () -> Unit) =
+        showSaveWarningIfEdited({}, cancelContinuation)
+
     fun save() {
         val file = fileProperty.get()
         if (file === null) saveAs() else saveAs(file)
@@ -74,7 +82,10 @@ class MainFragment : Fragment(APP_NAME) {
     }
 
     fun saveAs(file: File) {
-        file.writeText(contentProperty.get())
+        file.writeText(
+            contentProperty.get()/*TODO*/,
+            preferencesVM.fileEncodingProperty.get().orFileEncodingDefault()
+        )
         savedContentProperty.set(contentProperty.get())
     }
 
@@ -86,7 +97,7 @@ class MainFragment : Fragment(APP_NAME) {
         super.onBeforeShow()
         // TODO: prevent shutdown with unsaved changes
         currentWindow!!.setOnCloseRequest {
-            saveWarningIfEdited(cancelContinuation = it::consume)
+            showSaveWarningIfEditedWithCancelContinuation(it::consume)
         }
     }
 
@@ -102,18 +113,14 @@ class MainFragment : Fragment(APP_NAME) {
                         ) {
                             when (it) {
                                 ButtonType.YES -> find<MainFragment>().openWindow(owner = null)
-                                ButtonType.NO -> {
-                                    saveWarningIfEdited {
-                                        initNew()
-                                    }
-                                }
+                                ButtonType.NO -> showSaveWarningIfEditedWithContinuation { initNew() }
                             }
                         }
                     }
                 }
                 item("Open...", "Ctrl+O") {
                     action {
-                        saveWarningIfEdited {
+                        showSaveWarningIfEditedWithContinuation {
                             val file = chooseFile("Open...", FILE_FILTERS, owner = currentWindow).getOrNull(0)
                             file?.let { init(it) }
                         }
@@ -123,7 +130,7 @@ class MainFragment : Fragment(APP_NAME) {
                 item("Save", "Ctrl+S") { action { save() } }
                 item("Save As...", "Ctrl+Shift+S") { action { saveAs() } }
                 separator()
-                item("Exit") { action { saveWarningIfEdited { close() } } }
+                item("Exit") { action { showSaveWarningIfEditedWithContinuation { close() } } }
             }
 
             menu("Edit") {
@@ -139,26 +146,27 @@ class MainFragment : Fragment(APP_NAME) {
 
             menu("Tools") {
                 item("Run", "Ctrl+R") { action { TODO() } }
-                item("Run with Options...") { action { } }
-                item("Run Debugger")
+                item("Run with Options...") { action { find<RunWithOptionsFragment>().openWindow() } }
+                item("Run Debugger") { action { TODO() } }
                 separator()
-                // TODO
-                item("Shell")
-                item("View Error Info")
-                item("Run Installer")
-                item("REPL")
+                item("Shell") { action { TODO() } }
+                item("View Error Info") { action { TODO() } }
+                item("Run Installer") { action { TODO() } }
+                item("REPL") { action { TODO() } }
                 separator()
-                item("Build Independent Executable...")
-                item("Install Extensions...")
+                item("Build Independent Executable...") { action { TODO() } }
+                item("Install Extensions...") { action { TODO() } }
                 item("Preferences...") { action { find<PreferencesFragment>().openModal() } }
             }
 
             menu("Help") {
-                item("About $APP_NAME")
-                item("SDK Version Info")
+                item("About $APP_NAME") { action { find<AboutAppView>().openWindow() } }
+                item("About CovScript SDK") { action { find<AboutSdkView>().openWindow() } }
                 separator()
-                item("Visit CovScript Homepage")
-                item("View Documentation")
+                item("Visit CovScript Homepage") {
+                    action { hostServices.showDocument("http://covscript.org.cn/") }
+                }
+                item("View Documentation") { action { TODO() } }
             }
         }
 
@@ -194,11 +202,17 @@ class MainFragment : Fragment(APP_NAME) {
                     "Ln ${line + 1}, Col ${column + 1}"
                 })
 
-                label("LF")
-                label("UTF-8")
-                label("4 spaces")
+                label(preferencesVM.lineSeparatorProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultLineSeparator, it, LineSeparator::name)
+                })
+                label(preferencesVM.fileEncodingProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultFileEncoding, it, Charset::name)
+                })
+                label(preferencesVM.indentationProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultIndentation, it, Indentation::toEnglishString)
+                })
                 label(preferencesVM.fontSizeProperty.stringBinding {
-                    toStringWithNullForDefault(defaultFontSize, it, Double::toString)
+                    toEnglishStringWithNullForDefault(defaultFontSize, it) { "$it px" }
                 })
             }, 0.0)
         }
@@ -211,11 +225,17 @@ class RunWithOptionsFragment : Fragment("Run with Options") {
     val generateAst = SimpleBooleanProperty()
     override val root = vbox {
         form {
-            field("Program arguments") { textfield(programArgs) }
+            fieldset {
+                field("Program arguments") { textfield(programArgs) }
+            }
             checkbox("Compile only", compileOnly)
             checkbox("Generate AST", generateAst)
         }
-        button("Run")
+        buttonbar {
+            button("Run") {
+                action { TODO() }
+            }
+        }
     }
 }
 
@@ -234,17 +254,18 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
             fieldset("Editor settings") {
                 field("Line separator") {
                     combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault) {
-                        converter = toStringOnlyConverterWithNullForDefault(defaultLineSeparator, LineSeparator::name)
+                        converter =
+                            toEnglishStringOnlyConverterWithNullForDefault(defaultLineSeparator, LineSeparator::name)
                     }
                 }
                 field("File encoding") {
                     combobox(fileEncodingProperty, fileEncodingsWithNullForDefault) {
-                        converter = toStringOnlyConverterWithNullForDefault(defaultFileEncoding, Charset::name)
+                        converter = toEnglishStringOnlyConverterWithNullForDefault(defaultFileEncoding, Charset::name)
                     }
                 }
                 field("Indentation") {
                     combobox(indentationTypeProperty, indentationTypesWithNullForDefault) {
-                        converter = toStringOnlyConverterWithNullForDefault(
+                        converter = toEnglishStringOnlyConverterWithNullForDefault(
                             defaultIndentation.toEnglishString(),
                             IndentationType::toEnglishString
                         )
@@ -263,17 +284,19 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
                     }
                 }
             }
+
+            button("Restore defaults") {
+                action(::setAllNullForDefault)
+            }
         }
-        button("Set to default") {
-            action(::setAllNullForDefault)
-        }
+
 
         buttonbar {
             fun apply(): Boolean {
                 val preferences = try {
                     getAll()
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    //e.printStackTrace()
                     alert(
                         Alert.AlertType.ERROR, "Please enter valid preference values.",
                         buttons = arrayOf(ButtonType.OK),
@@ -304,8 +327,19 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
     }
 }
 
-class AboutCovScriptSimplisticIDEView : View("About $APP_NAME") {
-    override val root = TODO()
+class AboutAppView : View("About $APP_NAME") {
+    override val root = vbox {
+        spacing = defaultFontSize
+        vbox {
+            text(APP_NAME) { style { fontWeight = FontWeight.BOLD } }
+            text("Version: $VERSION")
+        }
+        text(LICENSE)
+        textflow {
+            text("GitHub repository: ")
+            hyperlink(URL) { action { hostServices.showDocument(text) } }
+        }
+    }
 }
 
 class AboutSdkView : View("About SDK") {

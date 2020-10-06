@@ -41,7 +41,7 @@ data class AppPreferenceProperties(
 fun AppPreferences.toProperties() =
     AppPreferenceProperties().apply { setAll(this@toProperties) }
 
-// TODO: Encapsulate for saving, avoid changing without saving
+// Make it better: encapsulate for saving, avoid changing without saving
 class AppPreferencesVM : ViewModel(), IAppPreferenceProperties by AppPreferenceProperties() {
     init {
         appPreferences {

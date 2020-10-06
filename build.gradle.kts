@@ -31,3 +31,27 @@ tasks.compileTestKotlin {
 }
 
 application.mainClassName = "shreckye.covscript.simplisticide.MainApp"
+
+
+// Generate app metadata for the project in Kotlin
+val packageRelativePath = "shreckye/covscript/simplisticide"
+val genKotlinDirPath = "$buildDir/gen/kotlin"
+val generateAppMetadataForSourceString = "generateAppMetadataForSource"
+val generatedAppMetadataFilename = "GeneratedAppMetadata.kt"
+tasks.register(generateAppMetadataForSourceString) {
+    inputs.property("version", version)
+    outputs.dir(genKotlinDirPath)
+    doFirst {
+        val file = File("$genKotlinDirPath/$packageRelativePath/$generatedAppMetadataFilename")
+        file.parentFile.mkdirs()
+        file.writeText("const val VERSION = \"$version\"")
+    }
+}
+sourceSets.main {
+    withConvention(org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet::class) {
+        kotlin.srcDir(genKotlinDirPath)
+    }
+}
+tasks.compileKotlin {
+    dependsOn(generateAppMetadataForSourceString)
+}

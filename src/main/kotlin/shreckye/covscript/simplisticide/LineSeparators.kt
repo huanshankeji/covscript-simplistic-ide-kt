@@ -15,6 +15,7 @@ fun LineSeparator.serializeToString() = LineSeparator.dataToString(this)
 fun String.deserializeToLineSeparator() = LineSeparator.stringToData(this)
 
 val systemLineSeparatorString: String get() = System.lineSeparator()
+
 fun fromLineSeparatorString(string: String) = when (string) {
     "\n" -> LineSeparator.LF
     "\r\n" -> LineSeparator.CRLF

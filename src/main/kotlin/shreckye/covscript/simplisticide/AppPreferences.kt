@@ -5,7 +5,7 @@ import tornadofx.Component
 import java.nio.charset.Charset
 import java.util.prefs.Preferences
 
-const val NODE_NAME = PACKAGE_NAME
+val NODE_NAME = PACKAGE_NAME
 fun Component.appPreferences(op: Preferences.() -> Unit) =
     preferences(NODE_NAME, op)
 
