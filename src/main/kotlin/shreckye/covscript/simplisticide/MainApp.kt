@@ -1,78 +1,137 @@
 package shreckye.covscript.simplisticide
 
+import VERSION
+import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
-import javafx.geometry.Orientation
-import javafx.geometry.Pos
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
 import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
+import javafx.scene.text.FontWeight
+import shreckye.covscript.simplisticide.tornadofx.currentWindowAlert
+import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
+import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
+import shreckye.covscript.simplisticide.tornadofx.textfield
 import tornadofx.*
 import java.io.File
+import java.nio.charset.Charset
 
 class MainApp : App(MainFragment::class)
 
-class MainFragment : Fragment("CovScript simplistic IDE") {
+class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_NAME),
+    IAppPreferenceReadOnlyProperties by preferencesVM {
     val fileProperty = SimpleObjectProperty<File?>()
-    val originalContentProperty = SimpleStringProperty()
+    val savedContentBytesProperty = SimpleObjectProperty<ByteArray?>()
     val contentProperty = SimpleStringProperty()
+
+    fun getContentBytes() =
+        contentProperty.get().replace(
+            javafxLineSeparator.toLineSeparatorString(),
+            lineSeparatorProperty.get().orDefault().toLineSeparatorString()
+        ).toByteArray(fileEncodingProperty.get().orFileEncodingDefault())
 
     lateinit var contentTextArea: TextArea
 
     fun init(file: File?) {
         fileProperty.set(file)
         if (file === null)
-            initContent("")
-        else
-            initContent(file.readText())
+            initContent(null, "")
+        else {
+            val fileContentBytes = file.readBytes()
+            val fileContentWithEncodingProcessedButLineSeparatorNotProcessed = fileContentBytes
+                .toString(fileEncodingProperty.get().orFileEncodingDefault())
+
+            val fileContent = fileContentWithEncodingProcessedButLineSeparatorNotProcessed.replace(
+                lineSeparatorProperty.get().orDefault().toLineSeparatorString(),
+                javafxLineSeparator.toLineSeparatorString()
+            )
+            initContent(fileContentBytes, fileContent)
+
+            // Show warnings on line separators if needed
+            val distinctSeparators =
+                extractDistinctSeparators(fileContentWithEncodingProcessedButLineSeparatorNotProcessed)
+            if (distinctSeparators.size == 1) {
+                val separator = distinctSeparators.single()
+                val preferenceSeparator = lineSeparatorProperty.get().orDefault()
+                if (separator !== preferenceSeparator)
+                    currentWindowAlert(
+                        Alert.AlertType.WARNING,
+                        "Mismatched line separators",
+                        "The line separator used in the file is $separator while it's set to $preferenceSeparator for the editor. Its content might not be displayed or processed properly."
+                    )
+            } else {
+                currentWindowAlert(
+                    Alert.AlertType.WARNING,
+                    "Mixed line separators",
+                    "The file contains mixed line separators: ${distinctSeparators.joinToString()}. Its content might not be displayed or processed properly."
+                )
+            }
+        }
     }
 
-    fun initContent(contentValue: String) {
-        originalContentProperty.set(contentValue)
-        contentProperty.set(contentValue)
+    private fun initContent(contentBytes: ByteArray?, content: String) {
+        savedContentBytesProperty.set(contentBytes)
+        contentProperty.set(content)
     }
 
     fun initNew() = init(null)
 
-    init {
-        initNew()
-    }
-
-    fun saveWarningIfEdited(continuation: () -> Unit) {
-        if (contentProperty.get() != originalContentProperty.get())
-            alert(
+    fun showSaveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
+        val bytes = getContentBytes()
+        if (!(bytes contentEquals (savedContentBytesProperty.get() ?: ByteArray(0))))
+            currentWindowAlert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
-                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL),
-                owner = currentWindow
+                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL)
             ) {
                 when (it) {
                     ButtonType.YES -> {
-                        save()
+                        save(bytes)
                         continuation()
                     }
                     ButtonType.NO -> continuation()
-                    ButtonType.CANCEL -> Unit
+                    ButtonType.CANCEL -> cancelContinuation()
                 }
             }
         else continuation()
     }
 
-    fun save() {
-        val pathValue = fileProperty.get()
-        if (pathValue === null) saveAs() else saveAs(pathValue)
+    fun showSaveWarningIfEditedWithContinuation(continuation: () -> Unit) =
+        showSaveWarningIfEdited(continuation, {})
+
+    fun showSaveWarningIfEditedWithCancelContinuation(cancelContinuation: () -> Unit) =
+        showSaveWarningIfEdited({}, cancelContinuation)
+
+    fun save(bytes: ByteArray = getContentBytes()) {
+        val file = fileProperty.get()
+        if (file === null) saveAs(bytes) else saveAs(bytes, file)
     }
 
-    fun saveAs() {
+    fun saveAs(bytes: ByteArray = getContentBytes()) {
         val file =
             chooseFile("Save As...", FILE_FILTERS, mode = FileChooserMode.Save, owner = currentWindow).getOrNull(0)
-        file?.let { saveAs(it) }
+        file?.let {
+            fileProperty.set(it)
+            saveAs(bytes, it)
+        }
     }
 
-    fun saveAs(file: File) {
-        file.writeText(contentProperty.get())
-        originalContentProperty.set(contentProperty.get())
+    fun saveAs(bytes: ByteArray, file: File) {
+        file.writeBytes(bytes)
+        savedContentBytesProperty.set(bytes)
+    }
+
+    init {
+        initNew()
+    }
+
+    override fun onBeforeShow() {
+        super.onBeforeShow()
+        // TODO: prevent shutdown with unsaved changes
+        currentWindow!!.setOnCloseRequest {
+            showSaveWarningIfEditedWithCancelContinuation(it::consume)
+        }
     }
 
     override val root = borderpane {
@@ -80,25 +139,20 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             menu("File") {
                 item("New", "Ctrl+N") {
                     action {
-                        alert(
+                        currentWindowAlert(
                             Alert.AlertType.CONFIRMATION, "Open in a new window?",
-                            buttons = arrayOf(ButtonType.YES, ButtonType.NO),
-                            owner = currentWindow
+                            buttons = arrayOf(ButtonType.YES, ButtonType.NO)
                         ) {
                             when (it) {
                                 ButtonType.YES -> find<MainFragment>().openWindow(owner = null)
-                                ButtonType.NO -> {
-                                    saveWarningIfEdited {
-                                        initNew()
-                                    }
-                                }
+                                ButtonType.NO -> showSaveWarningIfEditedWithContinuation { initNew() }
                             }
                         }
                     }
                 }
                 item("Open...", "Ctrl+O") {
                     action {
-                        saveWarningIfEdited {
+                        showSaveWarningIfEditedWithContinuation {
                             val file = chooseFile("Open...", FILE_FILTERS, owner = currentWindow).getOrNull(0)
                             file?.let { init(it) }
                         }
@@ -108,7 +162,7 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
                 item("Save", "Ctrl+S") { action { save() } }
                 item("Save As...", "Ctrl+Shift+S") { action { saveAs() } }
                 separator()
-                item("Exit") { action { close() } }
+                item("Exit") { action { showSaveWarningIfEditedWithContinuation { close() } } }
             }
 
             menu("Edit") {
@@ -123,43 +177,199 @@ class MainFragment : Fragment("CovScript simplistic IDE") {
             }
 
             menu("Tools") {
-                item("Run", "Ctrl+R")
-                item("Run Configurations...")
-                item("Run Debugger")
+                item("Run", "Ctrl+R") { action { TODO() } }
+                item("Run with Options...") { action { find<RunWithOptionsFragment>().openWindow() } }
+                item("Run Debugger") { action { TODO() } }
                 separator()
-                item("View Error Info")
-                item("Run Installer")
-                item("REPL")
+                item("Shell") { action { TODO() } }
+                item("View Error Info") { action { TODO() } }
+                item("Run Installer") { action { TODO() } }
+                item("REPL") { action { TODO() } }
                 separator()
-                item("Build Independent Executable...")
-                item("Install Extensions...")
-                item("Options...")
+                item("Build Independent Executable...") { action { TODO() } }
+                item("Install Extensions...") { action { TODO() } }
+                item("Preferences...") { action { find<PreferencesFragment>().openModal() } }
             }
 
             menu("Help") {
-                item("About CovScript Simplistic IDE")
-                item("SDK Version Info")
+                item("About $APP_NAME") { action { find<AboutAppView>().openWindow() } }
+                item("About CovScript SDK") { action { find<AboutSdkView>().openWindow() } }
                 separator()
-                item("Visit CovScript Homepage")
-                item("View Documentation")
+                item("Visit CovScript Homepage") {
+                    action { hostServices.showDocument("http://covscript.org.cn/") }
+                }
+                item("View Documentation") { action { TODO() } }
             }
         }
 
-        center = textarea(contentProperty).also { contentTextArea = it }
+        // TextArea seems to only support LF as its line separator
+        center = textarea(contentProperty) {
+            // Couldn't find an appropriate bind function
+            fontSizeProperty.bindByOnChange {
+                style { fontSize = it.orFontSizeDefault().px }
+            }
+        }
+            .also { contentTextArea = it }
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
-                label("New file")
-                separator(Orientation.VERTICAL)
-                label("Encoding: UTF-8")
+                label(fileProperty.stringBinding {
+                    if (it === null) "New file"
+                    else it.name
+                })
             }, 0.0)
 
             setRightAnchor(hbox {
-                alignment = Pos.BASELINE_RIGHT
-                label("Ln 1, Col 1")
-                separator(Orientation.VERTICAL)
-                label("Spaces: 4")
+                spacing = defaultFontSize
+
+                // Couldn't find an efficient built-in way to get caret line and column in JavaFX or TornadoFX
+                val caretPositionProperty = contentTextArea.caretPositionProperty()
+                label(stringBinding(caretPositionProperty, contentProperty) {
+                    val caretPosition = caretPositionProperty.get()
+                    val content = contentProperty.get()
+                    val newlineIndexSequence = sequenceOf(0) + content.asSequence().withIndex()
+                        .filter { it.value == '\n' }.map { it.index + 1 }
+                    val (line, newlineIndex) = newlineIndexSequence.withIndex().last { it.value <= caretPosition }
+                    val column = caretPosition - newlineIndex
+
+                    "Ln ${line + 1}, Col ${column + 1}"
+                })
+
+                label(lineSeparatorProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultLineSeparator, it, LineSeparator::name)
+                })
+                label(fileEncodingProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultFileEncoding, it, Charset::name)
+                })
+                label(indentationProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultIndentation, it, Indentation::toEnglishString)
+                })
+                label(fontSizeProperty.stringBinding {
+                    toEnglishStringWithNullForDefault(defaultFontSize, it) { "$it px" }
+                })
             }, 0.0)
         }
     }
+}
+
+class RunWithOptionsFragment : Fragment("Run with Options") {
+    val programArgs = SimpleStringProperty()
+    val compileOnly = SimpleBooleanProperty()
+    val generateAst = SimpleBooleanProperty()
+    override val root = vbox {
+        form {
+            fieldset {
+                field("Program arguments") { textfield(programArgs) }
+            }
+            checkbox("Compile only", compileOnly)
+            checkbox("Generate AST", generateAst)
+        }
+        buttonbar {
+            button("Run") {
+                action { TODO() }
+            }
+        }
+    }
+}
+
+class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment("Preferences"),
+    IEditAppPreferenceProperties by preferencesVM.copyToEditProperties() {
+    override val root = vbox {
+        form {
+            fieldset("Environment settings") {
+                field("SDK path") {
+                    textfield(sdkPathProperty.bindingWithNullForDefault("")) {
+                        promptText = "not set"
+                    }
+                }
+            }
+
+            fieldset("Editor settings") {
+                field("Line separator") {
+                    combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault) {
+                        converter =
+                            toEnglishStringOnlyConverterWithNullForDefault(defaultLineSeparator, LineSeparator::name)
+                    }
+                }
+                field("File encoding") {
+                    combobox(fileEncodingProperty, fileEncodingsWithNullForDefault) {
+                        converter = toEnglishStringOnlyConverterWithNullForDefault(defaultFileEncoding, Charset::name)
+                    }
+                }
+                field("Indentation") {
+                    combobox(indentationTypeProperty, indentationTypesWithNullForDefault) {
+                        converter = toEnglishStringOnlyConverterWithNullForDefault(
+                            defaultIndentation.toEnglishString(),
+                            IndentationType::toEnglishString
+                        )
+                    }
+                    field("Number") {
+                        textfield(indentationNumberProperty) {
+                            enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class })
+                            filterInput { it.controlNewText.isPositiveInt() }
+                        }
+                    }
+                }
+                field("Font size") {
+                    textfield(fontSizeProperty) {
+                        filterInput { it.controlNewText.isPositiveDouble() }
+                        promptText = "default: $defaultFontSize"
+                    }
+                }
+            }
+
+            button("Restore defaults") {
+                action(::setAllNullForDefault)
+            }
+
+            buttonbar {
+                fun apply(): Boolean {
+                    val preferences = try {
+                        getAll()
+                    } catch (e: Exception) {
+                        //e.printStackTrace()
+                        currentWindowAlert(Alert.AlertType.ERROR, "Please enter valid preference values.")
+                        null
+                    }
+
+                    return if (preferences !== null) {
+                        preferencesVM.setAll(preferences)
+                        preferencesVM.commit()
+                        true
+                    } else false
+                }
+                button("Save") {
+                    action {
+                        if (apply())
+                            close()
+                    }
+                }
+                button("Cancel") {
+                    action { close() }
+                }
+                button("Apply") {
+                    action { apply() }
+                }
+            }
+        }
+    }
+}
+
+class AboutAppView : View("About $APP_NAME") {
+    override val root = vbox {
+        spacing = defaultFontSize
+        vbox {
+            text(APP_NAME) { style { fontWeight = FontWeight.BOLD } }
+            text("Version: $VERSION")
+        }
+        text(LICENSE)
+        textflow {
+            text("GitHub repository: ")
+            hyperlink(URL) { action { hostServices.showDocument(text) } }
+        }
+    }
+}
+
+class AboutSdkView : View("About SDK") {
+    override val root = TODO()
 }
