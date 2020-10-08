@@ -1,23 +1,34 @@
 package shreckye.covscript.simplisticide
 
+import javafx.beans.property.ReadOnlyObjectProperty
 import javafx.beans.property.SimpleObjectProperty
 import shreckye.covscript.simplisticide.prefs.*
 import tornadofx.Commit
 import tornadofx.ViewModel
 import java.nio.charset.Charset
 
-interface IAppPreferenceProperties {
-    val sdkPathProperty: SimpleObjectProperty<String?>
+interface IAppPreferenceReadOnlyProperties {
+    val sdkPathProperty: ReadOnlyObjectProperty<String?>
 
-    val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?>
-    val fileEncodingProperty: SimpleObjectProperty<Charset?>
-    val indentationProperty: SimpleObjectProperty<Indentation?>
-    val fontSizeProperty: SimpleObjectProperty<Double?>
+    val lineSeparatorProperty: ReadOnlyObjectProperty<LineSeparator?>
+    val fileEncodingProperty: ReadOnlyObjectProperty<Charset?>
+    val indentationProperty: ReadOnlyObjectProperty<Indentation?>
+    val fontSizeProperty: ReadOnlyObjectProperty<Double?>
+
 
     fun getAll() = AppPreferences(
         sdkPathProperty.get(),
         lineSeparatorProperty.get(), fileEncodingProperty.get(), indentationProperty.get(), fontSizeProperty.get()
     )
+}
+
+interface IAppPreferenceProperties : IAppPreferenceReadOnlyProperties {
+    override val sdkPathProperty: SimpleObjectProperty<String?>
+
+    override val lineSeparatorProperty: SimpleObjectProperty<LineSeparator?>
+    override val fileEncodingProperty: SimpleObjectProperty<Charset?>
+    override val indentationProperty: SimpleObjectProperty<Indentation?>
+    override val fontSizeProperty: SimpleObjectProperty<Double?>
 
     fun setAll(appPreferences: AppPreferences) = with(appPreferences) {
         sdkPathProperty.set(sdkPath)

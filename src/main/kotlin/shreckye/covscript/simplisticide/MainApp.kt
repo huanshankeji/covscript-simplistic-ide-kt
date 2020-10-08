@@ -10,6 +10,7 @@ import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import javafx.scene.text.FontWeight
+import shreckye.covscript.simplisticide.tornadofx.currentWindowAlert
 import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
 import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
 import shreckye.covscript.simplisticide.tornadofx.textfield
@@ -19,39 +20,74 @@ import java.nio.charset.Charset
 
 class MainApp : App(MainFragment::class)
 
-class MainFragment : Fragment(APP_NAME) {
+class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_NAME),
+    IAppPreferenceReadOnlyProperties by preferencesVM {
     val fileProperty = SimpleObjectProperty<File?>()
-    val savedContentProperty = SimpleStringProperty()
+    val savedContentBytesProperty = SimpleObjectProperty<ByteArray?>()
     val contentProperty = SimpleStringProperty()
-    val preferencesVM by inject<AppPreferencesVM>()
+
+    fun getContentBytes() =
+        contentProperty.get().replace(
+            javafxLineSeparator.toLineSeparatorString(),
+            lineSeparatorProperty.get().orDefault().toLineSeparatorString()
+        ).toByteArray(fileEncodingProperty.get().orFileEncodingDefault())
 
     lateinit var contentTextArea: TextArea
 
     fun init(file: File?) {
         fileProperty.set(file)
         if (file === null)
-            initContent("")
-        else
-            initContent(file.readText())
+            initContent(null, "")
+        else {
+            val fileContentBytes = file.readBytes()
+            val fileContentWithEncodingProcessedButLineSeparatorNotProcessed = fileContentBytes
+                .toString(fileEncodingProperty.get().orFileEncodingDefault())
+
+            val fileContent = fileContentWithEncodingProcessedButLineSeparatorNotProcessed.replace(
+                lineSeparatorProperty.get().orDefault().toLineSeparatorString(),
+                javafxLineSeparator.toLineSeparatorString()
+            )
+            initContent(fileContentBytes, fileContent)
+
+            // Show warnings on line separators if needed
+            val distinctSeparators =
+                extractDistinctSeparators(fileContentWithEncodingProcessedButLineSeparatorNotProcessed)
+            if (distinctSeparators.size == 1) {
+                val separator = distinctSeparators.single()
+                val preferenceSeparator = lineSeparatorProperty.get().orDefault()
+                if (separator !== preferenceSeparator)
+                    currentWindowAlert(
+                        Alert.AlertType.WARNING,
+                        "Mismatched line separators",
+                        "The line separator used in the file is $separator while it's set to $preferenceSeparator for the editor. Its content might not be displayed or processed properly."
+                    )
+            } else {
+                currentWindowAlert(
+                    Alert.AlertType.WARNING,
+                    "Mixed line separators",
+                    "The file contains mixed line separators: ${distinctSeparators.joinToString()}. Its content might not be displayed or processed properly."
+                )
+            }
+        }
     }
 
-    fun initContent(contentValue: String) {
-        savedContentProperty.set(contentValue)
-        contentProperty.set(contentValue)
+    private fun initContent(contentBytes: ByteArray?, content: String) {
+        savedContentBytesProperty.set(contentBytes)
+        contentProperty.set(content)
     }
 
     fun initNew() = init(null)
 
     fun showSaveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
-        if (contentProperty.get() != savedContentProperty.get())
-            alert(
+        val bytes = getContentBytes()
+        if (!(bytes contentEquals (savedContentBytesProperty.get() ?: ByteArray(0))))
+            currentWindowAlert(
                 Alert.AlertType.WARNING, "The file has been edited. Save it?",
-                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL),
-                owner = currentWindow
+                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL)
             ) {
                 when (it) {
                     ButtonType.YES -> {
-                        save()
+                        save(bytes)
                         continuation()
                     }
                     ButtonType.NO -> continuation()
@@ -67,26 +103,23 @@ class MainFragment : Fragment(APP_NAME) {
     fun showSaveWarningIfEditedWithCancelContinuation(cancelContinuation: () -> Unit) =
         showSaveWarningIfEdited({}, cancelContinuation)
 
-    fun save() {
+    fun save(bytes: ByteArray = getContentBytes()) {
         val file = fileProperty.get()
-        if (file === null) saveAs() else saveAs(file)
+        if (file === null) saveAs(bytes) else saveAs(bytes, file)
     }
 
-    fun saveAs() {
+    fun saveAs(bytes: ByteArray = getContentBytes()) {
         val file =
             chooseFile("Save As...", FILE_FILTERS, mode = FileChooserMode.Save, owner = currentWindow).getOrNull(0)
         file?.let {
             fileProperty.set(it)
-            saveAs(it)
+            saveAs(bytes, it)
         }
     }
 
-    fun saveAs(file: File) {
-        file.writeText(
-            contentProperty.get()/*TODO*/,
-            preferencesVM.fileEncodingProperty.get().orFileEncodingDefault()
-        )
-        savedContentProperty.set(contentProperty.get())
+    fun saveAs(bytes: ByteArray, file: File) {
+        file.writeBytes(bytes)
+        savedContentBytesProperty.set(bytes)
     }
 
     init {
@@ -106,10 +139,9 @@ class MainFragment : Fragment(APP_NAME) {
             menu("File") {
                 item("New", "Ctrl+N") {
                     action {
-                        alert(
+                        currentWindowAlert(
                             Alert.AlertType.CONFIRMATION, "Open in a new window?",
-                            buttons = arrayOf(ButtonType.YES, ButtonType.NO),
-                            owner = currentWindow
+                            buttons = arrayOf(ButtonType.YES, ButtonType.NO)
                         ) {
                             when (it) {
                                 ButtonType.YES -> find<MainFragment>().openWindow(owner = null)
@@ -170,9 +202,10 @@ class MainFragment : Fragment(APP_NAME) {
             }
         }
 
+        // TextArea seems to only support LF as its line separator
         center = textarea(contentProperty) {
             // Couldn't find an appropriate bind function
-            preferencesVM.fontSizeProperty.bindByOnChange {
+            fontSizeProperty.bindByOnChange {
                 style { fontSize = it.orFontSizeDefault().px }
             }
         }
@@ -202,16 +235,16 @@ class MainFragment : Fragment(APP_NAME) {
                     "Ln ${line + 1}, Col ${column + 1}"
                 })
 
-                label(preferencesVM.lineSeparatorProperty.stringBinding {
+                label(lineSeparatorProperty.stringBinding {
                     toEnglishStringWithNullForDefault(defaultLineSeparator, it, LineSeparator::name)
                 })
-                label(preferencesVM.fileEncodingProperty.stringBinding {
+                label(fileEncodingProperty.stringBinding {
                     toEnglishStringWithNullForDefault(defaultFileEncoding, it, Charset::name)
                 })
-                label(preferencesVM.indentationProperty.stringBinding {
+                label(indentationProperty.stringBinding {
                     toEnglishStringWithNullForDefault(defaultIndentation, it, Indentation::toEnglishString)
                 })
-                label(preferencesVM.fontSizeProperty.stringBinding {
+                label(fontSizeProperty.stringBinding {
                     toEnglishStringWithNullForDefault(defaultFontSize, it) { "$it px" }
                 })
             }, 0.0)
@@ -288,40 +321,35 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
             button("Restore defaults") {
                 action(::setAllNullForDefault)
             }
-        }
 
+            buttonbar {
+                fun apply(): Boolean {
+                    val preferences = try {
+                        getAll()
+                    } catch (e: Exception) {
+                        //e.printStackTrace()
+                        currentWindowAlert(Alert.AlertType.ERROR, "Please enter valid preference values.")
+                        null
+                    }
 
-        buttonbar {
-            fun apply(): Boolean {
-                val preferences = try {
-                    getAll()
-                } catch (e: Exception) {
-                    //e.printStackTrace()
-                    alert(
-                        Alert.AlertType.ERROR, "Please enter valid preference values.",
-                        buttons = arrayOf(ButtonType.OK),
-                        owner = currentWindow
-                    )
-                    null
+                    return if (preferences !== null) {
+                        preferencesVM.setAll(preferences)
+                        preferencesVM.commit()
+                        true
+                    } else false
                 }
-
-                return if (preferences !== null) {
-                    preferencesVM.setAll(preferences)
-                    preferencesVM.commit()
-                    true
-                } else false
-            }
-            button("Save") {
-                action {
-                    if (apply())
-                        close()
+                button("Save") {
+                    action {
+                        if (apply())
+                            close()
+                    }
                 }
-            }
-            button("Cancel") {
-                action { close() }
-            }
-            button("Apply") {
-                action { apply() }
+                button("Cancel") {
+                    action { close() }
+                }
+                button("Apply") {
+                    action { apply() }
+                }
             }
         }
     }
