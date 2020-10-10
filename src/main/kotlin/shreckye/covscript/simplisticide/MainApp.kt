@@ -10,6 +10,7 @@ import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import javafx.scene.text.FontWeight
+import shreckye.covscript.BinDirectory
 import shreckye.covscript.simplisticide.tornadofx.currentWindowAlert
 import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
 import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
@@ -17,6 +18,7 @@ import shreckye.covscript.simplisticide.tornadofx.textfield
 import tornadofx.*
 import java.io.File
 import java.nio.charset.Charset
+import java.nio.file.Path
 
 class MainApp : App(MainFragment::class)
 
@@ -52,21 +54,25 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             // Show warnings on line separators if needed
             val distinctSeparators =
                 extractDistinctSeparators(fileContentWithEncodingProcessedButLineSeparatorNotProcessed)
-            if (distinctSeparators.size == 1) {
-                val separator = distinctSeparators.single()
-                val preferenceSeparator = lineSeparatorProperty.get().orDefault()
-                if (separator !== preferenceSeparator)
+            when (distinctSeparators.size) {
+                0 -> Unit
+                1 -> {
+                    val separator = distinctSeparators.single()
+                    val preferenceSeparator = lineSeparatorProperty.get().orDefault()
+                    if (separator !== preferenceSeparator)
+                        currentWindowAlert(
+                            Alert.AlertType.WARNING,
+                            "Mismatched line separators",
+                            "The line separator used in the file is $separator while it's set to $preferenceSeparator for the editor. Its content might not be displayed or processed properly."
+                        )
+                }
+                else -> {
                     currentWindowAlert(
                         Alert.AlertType.WARNING,
-                        "Mismatched line separators",
-                        "The line separator used in the file is $separator while it's set to $preferenceSeparator for the editor. Its content might not be displayed or processed properly."
+                        "Mixed line separators",
+                        "The file contains mixed line separators: ${distinctSeparators.joinToString()}. Its content might not be displayed or processed properly."
                     )
-            } else {
-                currentWindowAlert(
-                    Alert.AlertType.WARNING,
-                    "Mixed line separators",
-                    "The file contains mixed line separators: ${distinctSeparators.joinToString()}. Its content might not be displayed or processed properly."
-                )
+                }
             }
         }
     }
@@ -177,7 +183,25 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             }
 
             menu("Tools") {
-                item("Run", "Ctrl+R") { action { TODO() } }
+                item("Run", "Ctrl+R") {
+                    action {
+                        val sdkPath = sdkPathProperty.get()
+                        val file = fileProperty.get()
+                        if (sdkPath !== null && file !== null)
+                            showSaveWarningIfEditedWithContinuation {
+                                val csPath = Path.of(sdkPath, BinDirectory.PATH, BinDirectory.cs).toString()
+                                runAndPauseWithWindowsCmdWindow(csPath, file.name, directory = file.parentFile)
+                            }
+                        else
+                            currentWindowAlert(
+                                Alert.AlertType.ERROR,
+                                listOfNotNull(
+                                    if (sdkPath === null) "SDK path is not set" else null,
+                                    if (file === null) "please save the file first" else null
+                                ).joinToString(" and ").capitalize()
+                            )
+                    }
+                }
                 item("Run with Options...") { action { find<RunWithOptionsFragment>().openWindow() } }
                 item("Run Debugger") { action { TODO() } }
                 separator()
@@ -278,6 +302,7 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
         form {
             fieldset("Environment settings") {
                 field("SDK path") {
+                    // TODO (buggy): its content doesn't show
                     textfield(sdkPathProperty.bindingWithNullForDefault("")) {
                         promptText = "not set"
                     }
