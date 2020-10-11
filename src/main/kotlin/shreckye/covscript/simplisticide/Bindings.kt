@@ -23,8 +23,8 @@ interface Converter<A, B> {
 fun <A, B> bindBidirectionally(propertyA: Property<A>, propertyB: Property<B>, converter: Converter<A, B>) {
     // The JavaFX implementations use `WeakReference` to prevent memory leaking
     // and an `updating` flag to prevent cyclic updates
-    propertyA.onChange { propertyB.value = converter.aToB(it) }
-    propertyB.onChange { propertyA.value = converter.bToA(it) }
+    propertyA.bindByOnChange { propertyB.value = converter.aToB(it) }
+    propertyB.bindByOnChange { propertyA.value = converter.bToA(it) }
 }
 
 

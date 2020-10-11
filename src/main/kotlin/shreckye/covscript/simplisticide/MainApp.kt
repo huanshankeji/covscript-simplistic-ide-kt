@@ -302,7 +302,6 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
         form {
             fieldset("Environment settings") {
                 field("SDK path") {
-                    // TODO (buggy): its content doesn't show
                     textfield(sdkPathProperty.bindingWithNullForDefault("")) {
                         promptText = "not set"
                     }
