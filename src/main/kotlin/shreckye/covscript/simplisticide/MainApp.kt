@@ -10,14 +10,22 @@ import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import javafx.scene.text.FontWeight
-import shreckye.covscript.BinDirectory
+import shreckye.covscript.COVSCRIPT_FULL_NAME
+import shreckye.covscript.COVSCRIPT_GITHUB_URL
+import shreckye.covscript.COVSCRIPT_HOMEPATE_URL
+import shreckye.covscript.COVSCRIPT_ICON_WIDE_URL
+import shreckye.covscript.CovScriptSdkDirectory.BinDirectory
+import shreckye.covscript.CovScriptSdkDirectory.DOCS_DIRECTORY
+import shreckye.covscript.CovScriptSdkDirectory.IMPORTS_DIRECTORY
 import shreckye.covscript.simplisticide.tornadofx.currentWindowAlert
 import shreckye.covscript.simplisticide.tornadofx.isPositiveDouble
 import shreckye.covscript.simplisticide.tornadofx.isPositiveInt
 import shreckye.covscript.simplisticide.tornadofx.textfield
 import tornadofx.*
 import java.io.File
+import java.io.Reader
 import java.nio.charset.Charset
+import java.nio.file.Files
 import java.nio.file.Path
 
 class MainApp : App(MainFragment::class)
@@ -115,8 +123,11 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     }
 
     fun saveAs(bytes: ByteArray = getContentBytes()) {
+        val oldFile = fileProperty.get()
         val file =
-            chooseFile("Save As...", FILE_FILTERS, mode = FileChooserMode.Save, owner = currentWindow).getOrNull(0)
+            chooseFile(
+                "Save As...", SAVE_FILE_FILTERS, oldFile?.parentFile, FileChooserMode.Save, currentWindow
+            ) { initialFileName = oldFile?.name }.getOrNull(0)
         file?.let {
             fileProperty.set(it)
             saveAs(bytes, it)
@@ -127,6 +138,43 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         file.writeBytes(bytes)
         savedContentBytesProperty.set(bytes)
     }
+
+    fun checkSdkPathAndFileAndThenRun(block: (sdkPath: String, file: File) -> Unit) {
+        val sdkPath = sdkPathProperty.get()
+        val file = fileProperty.get()
+        if (sdkPath !== null && file !== null)
+            showSaveWarningIfEditedWithContinuation { block(sdkPath, file) }
+        else
+            currentWindowAlert(
+                Alert.AlertType.ERROR,
+                listOfNotNull(
+                    if (sdkPath === null) "SDK path is not set" else null,
+                    if (file === null) "please save the file first" else null
+                ).joinToString(" and ").capitalize()
+            )
+    }
+
+    private fun getCsPath(sdkPath: String) =
+        Path.of(sdkPath, BinDirectory.NAME, BinDirectory.cs).toString()
+
+    fun checkSdkPathAndFileAndThenRunWithCs(block: (csPath: String, file: File) -> Unit) =
+        checkSdkPathAndFileAndThenRun { sdkPath, file -> block(getCsPath(sdkPath), file) }
+
+    fun getDumpAstText(csPath: String, file: File): String {
+        val process = runProcess(csPath, "--compile-only", "--dump-ast", "--no-optimize", file.path)
+        return process.inputStream.bufferedReader().use(Reader::readText)
+    }
+
+    fun checkSdkPathAndThenRun(block: (sdkPath: String) -> Unit) {
+        val sdkPath = sdkPathProperty.get()
+        if (sdkPath !== null)
+            block(sdkPath)
+        else
+            currentWindowAlert(Alert.AlertType.ERROR, "SDK path is not set")
+    }
+
+    fun checkSdkPathAndThenRunWithCs(block: (csPath: String) -> Unit) =
+        checkSdkPathAndThenRun { sdkPath -> block(getCsPath(sdkPath)) }
 
     init {
         initNew()
@@ -159,7 +207,9 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 item("Open...", "Ctrl+O") {
                     action {
                         showSaveWarningIfEditedWithContinuation {
-                            val file = chooseFile("Open...", FILE_FILTERS, owner = currentWindow).getOrNull(0)
+                            val file = chooseFile(
+                                "Open...", SAVE_FILE_FILTERS, fileProperty.get()?.parentFile, owner = currentWindow
+                            ).getOrNull(0)
                             file?.let { init(it) }
                         }
                     }
@@ -185,44 +235,111 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             menu("Tools") {
                 item("Run", "Ctrl+R") {
                     action {
-                        val sdkPath = sdkPathProperty.get()
-                        val file = fileProperty.get()
-                        if (sdkPath !== null && file !== null)
-                            showSaveWarningIfEditedWithContinuation {
-                                val csPath = Path.of(sdkPath, BinDirectory.PATH, BinDirectory.cs).toString()
-                                runAndPauseWithWindowsCmdWindow(csPath, file.name, directory = file.parentFile)
-                            }
-                        else
-                            currentWindowAlert(
-                                Alert.AlertType.ERROR,
-                                listOfNotNull(
-                                    if (sdkPath === null) "SDK path is not set" else null,
-                                    if (file === null) "please save the file first" else null
-                                ).joinToString(" and ").capitalize()
-                            )
+                        checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
+                            runProcessAndPauseWithWindowsCmdWindow(csPath, file.name, directory = file.parentFile)
+                        }
                     }
                 }
-                item("Run with Options...") { action { find<RunWithOptionsFragment>().openWindow() } }
-                item("Run Debugger") { action { TODO() } }
+                item("Run with Options...") { action { RunWithOptionsFragment(this@MainFragment).openWindow() } }
+                item("Dump AST to...") {
+                    action {
+                        checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
+                            val dumpAstText = getDumpAstText(csPath, file)
+                            val dumpAstFile = chooseFile(
+                                "Dump AST to...",
+                                AST_FILE_FILTERS, file.parentFile, FileChooserMode.Save, currentWindow
+                            ) {
+                                initialFileName = file.name.run {
+                                    val lastDotIndex = lastIndexOf(".")
+                                    val baseName = if (lastDotIndex != -1) substring(0, lastDotIndex) else this
+                                    "$baseName.csa"
+                                }
+                            }
+                                .getOrNull(0)
+                            dumpAstFile?.run { writeText(dumpAstText) }
+                        }
+                    }
+                }
+                item("Run Debugger") {
+                    action {
+                        checkSdkPathAndFileAndThenRun { sdkPath, file ->
+                            val csDbgPath = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csDbg).toString()
+                            runProcessAndPauseWithWindowsCmdWindow(csDbgPath, file.name, directory = file.parentFile)
+                        }
+                    }
+                }
                 separator()
-                item("Shell") { action { TODO() } }
-                item("View Error Info") { action { TODO() } }
-                item("Run Installer") { action { TODO() } }
-                item("REPL") { action { TODO() } }
+                item("Shell") {
+                    action {
+                        fileProperty.get()?.let(::openWindowsCmdWindow) ?: openWindowsCmdWindow()
+                    }
+                }
+                item("View Error Info") {
+                    action {
+                        checkSdkPathAndThenRun { sdkPath ->
+                            val csLogFile = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csLog).toFile()
+                            if (csLogFile.exists()) {
+                                val errorText = csLogFile.readText()
+                                currentWindowAlert(Alert.AlertType.INFORMATION, "Error Info", errorText)
+                            } else
+                                currentWindowAlert(Alert.AlertType.INFORMATION, "No Error Info")
+                        }
+                    }
+                }
+                item("Run Installer") {
+                    action {
+                        checkSdkPathAndThenRun { sdkPath ->
+                            val csInstFile = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csInst).toFile()
+                            desktopOpen(csInstFile)
+                        }
+                    }
+                }
+                item("REPL") {
+                    action {
+                        checkSdkPathAndThenRunWithCs(::runProcessWithWindowsCmdWindow)
+                    }
+                }
                 separator()
-                item("Build Independent Executable...") { action { TODO() } }
-                item("Install Extensions...") { action { TODO() } }
+                //item("Build Independent Executable...")
+                item("Add SDK Extensions...") {
+                    action {
+                        checkSdkPathAndThenRun { sdkPath ->
+                            val file = chooseFile("Install SDK Extensions...", EXTENSION_FILE_FILTERS).getOrNull(0)
+                            file?.let {
+                                try {
+                                    Files.copy(file.toPath(), Path.of(sdkPath, IMPORTS_DIRECTORY, file.name))
+                                } catch (e: FileAlreadyExistsException) {
+                                    currentWindowAlert(
+                                        Alert.AlertType.ERROR, "An extension file with the same name already exists"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 item("Preferences...") { action { find<PreferencesFragment>().openModal() } }
             }
 
             menu("Help") {
                 item("About $APP_NAME") { action { find<AboutAppView>().openWindow() } }
-                item("About CovScript SDK") { action { find<AboutSdkView>().openWindow() } }
+                item("About CovScript") {
+                    action {
+                        checkSdkPathAndThenRun {
+                            find<AboutCovscriptAndSdkView>().openWindow()
+                        }
+                    }
+                }
                 separator()
                 item("Visit CovScript Homepage") {
                     action { hostServices.showDocument("http://covscript.org.cn/") }
                 }
-                item("View Documentation") { action { TODO() } }
+                item("View Documentation") {
+                    action {
+                        checkSdkPathAndThenRun { sdkPath ->
+                            desktopOpen(File(sdkPath, DOCS_DIRECTORY))
+                        }
+                    }
+                }
             }
         }
 
@@ -276,21 +393,36 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     }
 }
 
-class RunWithOptionsFragment : Fragment("Run with Options") {
-    val programArgs = SimpleStringProperty()
+class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Options") {
+    val programArgs = SimpleStringProperty("")
     val compileOnly = SimpleBooleanProperty()
-    val generateAst = SimpleBooleanProperty()
+    val dumpAst = SimpleBooleanProperty()
+
     override val root = vbox {
         form {
             fieldset {
                 field("Program arguments") { textfield(programArgs) }
             }
             checkbox("Compile only", compileOnly)
-            checkbox("Generate AST", generateAst)
+            checkbox("Dump AST", dumpAst)
         }
         buttonbar {
             button("Run") {
-                action { TODO() }
+                action {
+                    mainFragment.checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
+                        runProcessAndPauseWithWindowsCmdWindow(
+                            *listOf(
+                                listOf(csPath),
+                                programArgs.get().split(' '),
+                                listOfNotNull(
+                                    if (compileOnly.get()) "--compile-only" else null,
+                                    if (dumpAst.get()) "--dump-ast" else null
+                                ),
+                                listOf(file.name)
+                            ).flatten().toTypedArray(), directory = file.parentFile
+                        )
+                    }
+                }
             }
         }
     }
@@ -394,6 +526,21 @@ class AboutAppView : View("About $APP_NAME") {
     }
 }
 
-class AboutSdkView : View("About SDK") {
-    override val root = TODO()
+class AboutCovscriptAndSdkView : View("About CovScript") {
+    override val root = vbox {
+        spacing = defaultFontSize
+        text(COVSCRIPT_FULL_NAME)
+        imageview(COVSCRIPT_ICON_WIDE_URL) {
+            isPreserveRatio = true
+            fitWidthProperty().bind(widthProperty())
+        }
+        textflow {
+            text("Homepage: ")
+            hyperlink(COVSCRIPT_HOMEPATE_URL) { action { hostServices.showDocument(text) } }
+        }
+        textflow {
+            text("GitHub repository: ")
+            hyperlink(COVSCRIPT_GITHUB_URL) { action { hostServices.showDocument(text) } }
+        }
+    }
 }
