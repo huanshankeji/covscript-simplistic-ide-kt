@@ -6,14 +6,13 @@ import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.scene.control.Alert
 import javafx.scene.control.ButtonType
-import javafx.scene.control.TextArea
 import javafx.scene.layout.AnchorPane.setLeftAnchor
 import javafx.scene.layout.AnchorPane.setRightAnchor
 import javafx.scene.text.FontWeight
-import shreckye.covscript.COVSCRIPT_FULL_NAME
-import shreckye.covscript.COVSCRIPT_GITHUB_URL
-import shreckye.covscript.COVSCRIPT_HOMEPATE_URL
-import shreckye.covscript.COVSCRIPT_ICON_WIDE_URL
+import org.fxmisc.flowless.VirtualizedScrollPane
+import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.LineNumberFactory
+import shreckye.covscript.*
 import shreckye.covscript.CovScriptSdkDirectory.BinDirectory
 import shreckye.covscript.CovScriptSdkDirectory.DOCS_DIRECTORY
 import shreckye.covscript.CovScriptSdkDirectory.IMPORTS_DIRECTORY
@@ -27,6 +26,7 @@ import java.io.Reader
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 
 class MainApp : App(MainFragment::class)
 
@@ -34,15 +34,16 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     IAppPreferenceReadOnlyProperties by preferencesVM {
     val fileProperty = SimpleObjectProperty<File?>()
     val savedContentBytesProperty = SimpleObjectProperty<ByteArray?>()
-    val contentProperty = SimpleStringProperty()
+    //val contentProperty = SimpleStringProperty()
 
     fun getContentBytes() =
-        contentProperty.get().replace(
+        /*contentProperty.get()*/
+        contentCodeArea.text.replace(
             javafxLineSeparator.toLineSeparatorString(),
             lineSeparatorProperty.get().orDefault().toLineSeparatorString()
         ).toByteArray(fileEncodingProperty.get().orFileEncodingDefault())
 
-    lateinit var contentTextArea: TextArea
+    lateinit var contentCodeArea: CodeArea
 
     fun init(file: File?) {
         fileProperty.set(file)
@@ -87,7 +88,8 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
 
     private fun initContent(contentBytes: ByteArray?, content: String) {
         savedContentBytesProperty.set(contentBytes)
-        contentProperty.set(content)
+        //contentProperty.set(content)
+        contentCodeArea.replaceText(content)
     }
 
     fun initNew() = init(null)
@@ -176,10 +178,6 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     fun checkSdkPathAndThenRunWithCs(block: (csPath: String) -> Unit) =
         checkSdkPathAndThenRun { sdkPath -> block(getCsPath(sdkPath)) }
 
-    init {
-        initNew()
-    }
-
     override fun onBeforeShow() {
         super.onBeforeShow()
         // TODO: prevent shutdown with unsaved changes
@@ -222,14 +220,14 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             }
 
             menu("Edit") {
-                // Lambdas can't be replaced with references here for the var `contentTextArea`
-                item("Undo", "Ctrl+Z") { action { contentTextArea.undo() } }
-                item("Redo", "Ctrl+Shift+Z") { action { contentTextArea.redo() } }
+                // Lambdas can't be replaced with references here for the var `contentCodeArea`
+                item("Undo", "Ctrl+Z") { action { contentCodeArea.undo() } }
+                item("Redo", "Ctrl+Shift+Z") { action { contentCodeArea.redo() } }
                 separator()
-                item("Cut", "Ctrl+X") { action { contentTextArea.cut() } }
-                item("Copy", "Ctrl+C") { action { contentTextArea.copy() } }
-                item("Paste", "Ctrl+V") { action { contentTextArea.paste() } }
-                item("Select All", "Ctrl+A") { action { contentTextArea.selectAll() } }
+                item("Cut", "Ctrl+X") { action { contentCodeArea.cut() } }
+                item("Copy", "Ctrl+C") { action { contentCodeArea.copy() } }
+                item("Paste", "Ctrl+V") { action { contentCodeArea.paste() } }
+                item("Select All", "Ctrl+A") { action { contentCodeArea.selectAll() } }
             }
 
             menu("Tools") {
@@ -344,13 +342,41 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         }
 
         // TextArea seems to only support LF as its line separator
-        center = textarea(contentProperty) {
+        center = VirtualizedScrollPane(CodeArea().apply {
             // Couldn't find an appropriate bind function
             fontSizeProperty.bindByOnChange {
                 style { fontSize = it.orFontSizeDefault().px }
             }
+
+            paragraphGraphicFactory = LineNumberFactory.get(this)
+            stylesheets.add(MainFragment::class.java.getResource("covscript-highlight.css").toExternalForm())
+            paragraphs.addModificationObserver {
+                for (parIndex in it.from until it.to) {
+                    val syntaxSegmentss = findCovscriptSyntaxSegmentss(getText(parIndex))
+
+                    fun highlightSegments(ranges: SyntaxSegmentRanges, cssClass: String) {
+                        for (range in ranges)
+                            setStyle(
+                                parIndex, range.start, range.endInclusive + 1,
+                                Collections.singleton(cssClass)
+                            )
+                    }
+
+                    with(syntaxSegmentss) {
+                        // Follows Visual Studio Code Light+ Color Theme C++ color scheme
+                        highlightSegments(comments, "comment")
+                        highlightSegments(stringLiterals, "string-literal")
+                        highlightSegments(numberLiterals, "number-literal")
+                        highlightSegments(preprocessingStatements, "preprocessing-statement")
+                        highlightSegments(keywords, "keyword")
+                        highlightSegments(symbols, "symbol")
+                        highlightSegments(functions, "function")
+                        highlightSegments(variables, "variable")
+                    }
+                }
+            }
         }
-            .also { contentTextArea = it }
+            .also { contentCodeArea = it })
 
         bottom = anchorpane {
             setLeftAnchor(hbox {
@@ -363,17 +389,10 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             setRightAnchor(hbox {
                 spacing = defaultFontSize
 
-                // Couldn't find an efficient built-in way to get caret line and column in JavaFX or TornadoFX
-                val caretPositionProperty = contentTextArea.caretPositionProperty()
-                label(stringBinding(caretPositionProperty, contentProperty) {
-                    val caretPosition = caretPositionProperty.get()
-                    val content = contentProperty.get()
-                    val newlineIndexSequence = sequenceOf(0) + content.asSequence().withIndex()
-                        .filter { it.value == '\n' }.map { it.index + 1 }
-                    val (line, newlineIndex) = newlineIndexSequence.withIndex().last { it.value <= caretPosition }
-                    val column = caretPosition - newlineIndex
-
-                    "Ln ${line + 1}, Col ${column + 1}"
+                val lineProperty = contentCodeArea.currentParagraphProperty()
+                val columnProperty = contentCodeArea.caretColumnProperty()
+                label(stringBinding(lineProperty, columnProperty) {
+                    "Ln ${lineProperty.value + 1}, Col ${columnProperty.value + 1}"
                 })
 
                 label(lineSeparatorProperty.stringBinding {
@@ -390,6 +409,11 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 })
             }, 0.0)
         }
+    }
+
+
+    init {
+        initNew()
     }
 }
 

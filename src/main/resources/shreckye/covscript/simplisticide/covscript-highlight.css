@@ -1,0 +1,29 @@
+.comment {
+    -fx-fill: green;
+}
+
+.string-literal {
+    -fx-fill: red;
+}
+
+.number-literal {
+    -fx-fill: lightgreen;
+}
+
+.preprocessing-statement {
+    -fx-fill: purple;
+}
+
+.keyword {
+    -fx-fill: blue;
+}
+
+.symbol {
+}
+
+.function {
+    -fx-fill: brown;
+}
+
+.variable {
+}
