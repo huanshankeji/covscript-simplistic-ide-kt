@@ -268,7 +268,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                     }
                 }
                 separator()
-                item("Shell") {
+                item("Terminal") {
                     action {
                         fileProperty.get()?.let(::openWindowsCmdWindow) ?: openWindowsCmdWindow()
                     }
