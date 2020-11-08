@@ -3,14 +3,14 @@ package shreckye.covscript.simplisticide
 import kotlin.reflect.KClass
 
 sealed class Indentation {
-    abstract fun getString(): String
+    abstract val text: String
 
     class Spaces(val number: Int) : Indentation() {
-        override fun getString(): String = " ".repeat(number)
+        override val text: String get() = " ".repeat(number)
     }
 
     object Tab : Indentation() {
-        override fun getString(): String = "\t"
+        override val text: String get() = "\t"
     }
 
     companion object : StringBiSerializer<Indentation> {

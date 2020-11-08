@@ -348,6 +348,16 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             fontSizeProperty.bindByOnChange {
                 style { fontSize = it.orFontSizeDefault().px }
             }
+            setOnKeyTyped {
+                if (it.character == "\t") {
+                    val currentParagraph = currentParagraph
+                    val caretColumn = caretColumn
+                    replaceText(
+                        currentParagraph, caretColumn - 1, currentParagraph, caretColumn,
+                        indentationProperty.get().orDefault().text
+                    )
+                }
+            }
 
             paragraphGraphicFactory = LineNumberFactory.get(this)
             stylesheets.add(MainFragment::class.java.getResource("covscript-highlight.css").toExternalForm())
