@@ -163,7 +163,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         checkSdkPathAndFileAndThenRun { sdkPath, file -> block(getCsPath(sdkPath), file) }
 
     fun getDumpAstText(csPath: String, file: File): String {
-        val process = runProcess(csPath, "--compile-only", "--dump-ast", "--no-optimize", file.path)
+        val process = startProcess(csPath, "--compile-only", "--dump-ast", "--no-optimize", file.path)
         return process.inputStream.bufferedReader().use(Reader::readText)
     }
 
@@ -235,7 +235,11 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 item("Run", "Ctrl+R") {
                     action {
                         checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
-                            runProcessAndPauseWithWindowsCmdWindow(csPath, file.name, directory = file.parentFile)
+                            currentOSTerminalActions.runProcessAndPauseWithTerminal(
+                                csPath,
+                                file.name,
+                                directory = file.parentFile
+                            )
                         }
                     }
                 }
@@ -263,14 +267,17 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                     action {
                         checkSdkPathAndFileAndThenRun { sdkPath, file ->
                             val csDbgPath = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csDbg).toString()
-                            runProcessAndPauseWithWindowsCmdWindow(csDbgPath, file.name, directory = file.parentFile)
+                            currentOSTerminalActions.runProcessWithTerminal(
+                                csDbgPath, file.name, directory = file.parentFile
+                            )
                         }
                     }
                 }
                 separator()
                 item("Terminal") {
                     action {
-                        fileProperty.get()?.let(::openWindowsCmdWindow) ?: openWindowsCmdWindow()
+                        fileProperty.get()?.let(currentOSTerminalActions::openTerminal)
+                            ?: currentOSTerminalActions.openTerminal()
                     }
                 }
                 item("View Error Info") {
@@ -295,7 +302,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 }
                 item("REPL") {
                     action {
-                        checkSdkPathAndThenRunWithCs(::runProcessWithWindowsCmdWindow)
+                        checkSdkPathAndThenRunWithCs(currentOSTerminalActions::runProcessWithTerminal)
                     }
                 }
                 separator()
@@ -445,7 +452,7 @@ class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Op
             button("Run") {
                 action {
                     mainFragment.checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
-                        runProcessAndPauseWithWindowsCmdWindow(
+                        currentOSTerminalActions.runProcessAndPauseWithTerminal(
                             *listOf(
                                 listOf(csPath),
                                 programArgs.get().split(' '),
