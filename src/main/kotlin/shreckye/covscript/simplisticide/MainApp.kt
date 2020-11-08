@@ -187,8 +187,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     }
 
     override val root = borderpane {
-        prefWidth = 800.0
-        prefHeight = 600.0
+        setPrefSize(800.0, 600.0)
         top = menubar {
             menu("File") {
                 item("New", "Ctrl+N") {
