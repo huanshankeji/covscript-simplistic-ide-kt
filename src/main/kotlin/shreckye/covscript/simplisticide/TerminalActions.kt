@@ -11,6 +11,15 @@ val currentOSTerminalActions = when {
     else -> throw IllegalArgumentException("unknown OS name: $osName")
 }
 
+private fun escapeCommandLineToShellString(commandLine: String): String {
+    val escaped = commandLine.replace("\\", "\\\\").replace("\"", "\\\"")
+    return "\"$escaped\""
+}
+
+private fun escapeCommandsToShellString(vararg commands: String) =
+    escapeCommandLineToShellString(commands.joinToString(" "))
+
+
 interface TerminalActions {
     fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String>
 
@@ -44,13 +53,17 @@ interface TerminalActions {
 
 object LinuxXTerminalEmulatorActions : TerminalActions {
     override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
-        TODO()
+        arrayOf("x-terminal-emulator", "-e", command)
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", *commands)
+        arrayOf("x-terminal-emulator", "-e", escapeCommandsToShellString(*commands))
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
-        getRunProcessWithTerminalCommands(*commands, "&", "read", "-n1", "-r")
+        getRunProcessWithTerminalCommands(
+            *commands, "&&",
+            // "read" is a bash command instead of an executable
+            "bash", "-c", escapeCommandsToShellString("read", "-n1", "-r")
+        )
 
     override fun getOpenTerminalCommands(): Array<String> =
         arrayOf("x-terminal-emulator")
@@ -63,12 +76,7 @@ object MacOSXOpenTerminalActions : TerminalActions {
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
         arrayOf(
             "osascript", "-e",
-            """'tell app "Terminal" to do script "${
-                commands.joinToString(" ") {
-                    val doubleQuotesEscaped = it.replace("\"", "\\\"")
-                    if (doubleQuotesEscaped.contains(' ')) "\"$doubleQuotesEscaped\"" else doubleQuotesEscaped
-                }
-            }"'"""
+            """'tell app "Terminal" to do script ${escapeCommandsToShellString(*commands)}'"""
         )
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
