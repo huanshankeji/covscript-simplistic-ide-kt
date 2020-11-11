@@ -276,7 +276,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 separator()
                 item("Terminal") {
                     action {
-                        fileProperty.get()?.let(currentOSTerminalActions::openTerminal)
+                        fileProperty.get()?.let { currentOSTerminalActions.openTerminal(it.parentFile) }
                             ?: currentOSTerminalActions.openTerminal()
                     }
                 }

@@ -12,6 +12,9 @@ val currentOSTerminalActions = when {
 }
 
 interface TerminalActions {
+    fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String>
+
+
     fun runProcessWithTerminal(vararg commands: String): Process =
         startProcess(*getRunProcessWithTerminalCommands(*commands))
 
@@ -40,6 +43,9 @@ interface TerminalActions {
 }
 
 object LinuxXTerminalEmulatorActions : TerminalActions {
+    override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
+        TODO()
+
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
         arrayOf("x-terminal-emulator", "-e", *commands)
 
@@ -51,6 +57,8 @@ object LinuxXTerminalEmulatorActions : TerminalActions {
 }
 
 object MacOSXOpenTerminalActions : TerminalActions {
+    override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
+        TODO()
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
         arrayOf(
@@ -73,12 +81,15 @@ object MacOSXOpenTerminalActions : TerminalActions {
 object WindowsCmdWindowActions : TerminalActions {
     // "start" is a CMD command instead of an executable
 
+    override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
+        arrayOf("cmd", "/c", "start", command)
+
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf("cmd", "/c", "start", "cmd", "/c", *commands, "&", "pause")
+        arrayOf("cmd", "/c", "start", "cmd", "/c", *commands)
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
-        getRunProcessWithTerminalCommands(*commands, "&", "pause")
+        getRunProcessWithTerminalCommands(*commands, "^&", "pause")
 
     override fun getOpenTerminalCommands(): Array<String> =
-        getRunProcessWithTerminalCommands("cmd")
+        getRunNoArgProcessWithTerminalCommands("cmd")
 }
