@@ -103,8 +103,10 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             ) {
                 when (it) {
                     ButtonType.YES -> {
-                        save(bytes)
-                        continuation()
+                        if (save(bytes))
+                            continuation()
+                        else
+                            cancelContinuation()
                     }
                     ButtonType.NO -> continuation()
                     ButtonType.CANCEL -> cancelContinuation()
@@ -119,21 +121,27 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     fun showSaveWarningIfEditedWithCancelContinuation(cancelContinuation: () -> Unit) =
         showSaveWarningIfEdited({}, cancelContinuation)
 
-    fun save(bytes: ByteArray = getContentBytes()) {
+    fun save(bytes: ByteArray = getContentBytes()): Boolean {
         val file = fileProperty.get()
-        if (file === null) saveAs(bytes) else saveAs(bytes, file)
+        return if (file === null)
+            saveAs(bytes)
+        else {
+            saveAs(bytes, file)
+            true
+        }
     }
 
-    fun saveAs(bytes: ByteArray = getContentBytes()) {
+    fun saveAs(bytes: ByteArray = getContentBytes()): Boolean {
         val oldFile = fileProperty.get()
         val file =
             chooseFile(
                 "Save As...", SAVE_FILE_FILTERS, oldFile?.parentFile, FileChooserMode.Save, currentWindow
             ) { initialFileName = oldFile?.name }.getOrNull(0)
-        file?.let {
+        return file?.let {
             fileProperty.set(it)
             saveAs(bytes, it)
-        }
+            true
+        } ?: false
     }
 
     fun saveAs(bytes: ByteArray, file: File) {
