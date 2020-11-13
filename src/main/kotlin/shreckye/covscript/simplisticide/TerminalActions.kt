@@ -2,22 +2,31 @@ package shreckye.covscript.simplisticide
 
 import java.io.File
 
-private val osName = System.getProperty("os.name")
+val currentOSTerminalActions = runWhenCurrentOS(
+    { LinuxXTerminalEmulatorActions },
+    { MacOSXOpenTerminalActions },
+    { WindowsCmdStartTerminalActions }
+)
 
-val currentOSTerminalActions = when {
-    osName.startsWith("Linux") -> LinuxXTerminalEmulatorActions
-    osName.startsWith("Mac OS X") -> MacOSXOpenTerminalActions
-    osName.startsWith("Windows") -> WindowsCmdWindowActions
-    else -> throw IllegalArgumentException("unknown OS name: $osName")
+
+private fun String.quote() =
+    "\"$this\""
+
+private fun escapeCommand(command: String) =
+    command.replace("\\", "\\\\").replace("\"", "\\\"")
+
+private fun escapeCommandAndQuote(command: String): String =
+    escapeCommand(command).quote()
+
+private fun escapeCommandAndQuoteIfNeeded(command: String): String {
+    val escapedCommand = escapeCommand(command)
+    return if (!(command.startsWith('"') && command.endsWith('"')) &&
+        command.contains(' ')
+    ) escapedCommand.quote() else escapedCommand
 }
 
-private fun escapeCommandLineToShellString(commandLine: String): String {
-    val escaped = commandLine.replace("\\", "\\\\").replace("\"", "\\\"")
-    return "\"$escaped\""
-}
-
-private fun escapeCommandsToShellString(vararg commands: String) =
-    escapeCommandLineToShellString(commands.joinToString(" "))
+private fun joinToCommandLine(vararg commands: String) =
+    commands.asSequence().map(::escapeCommandAndQuoteIfNeeded).joinToString(" ")
 
 
 interface TerminalActions {
@@ -56,13 +65,13 @@ object LinuxXTerminalEmulatorActions : TerminalActions {
         arrayOf("x-terminal-emulator", "-e", command)
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", escapeCommandsToShellString(*commands))
+        arrayOf("x-terminal-emulator", "-e", joinToCommandLine(*commands))
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
         getRunProcessWithTerminalCommands(
             *commands, "&&",
             // "read" is a bash command instead of an executable
-            "bash", "-c", escapeCommandsToShellString("read", "-n1", "-r")
+            "bash", "-c", joinToCommandLine("read", "-n1", "-r")
         )
 
     override fun getOpenTerminalCommands(): Array<String> =
@@ -70,23 +79,38 @@ object LinuxXTerminalEmulatorActions : TerminalActions {
 }
 
 object MacOSXOpenTerminalActions : TerminalActions {
+    private fun escapeAndQuoteAppleScript(text: String) =
+        // This solution may be buggy.
+        escapeCommandAndQuote(text)
+
+    private fun getOpenTerminalInDirectoryCommandsWithPossiblyMoreCommands(commands: Array<out String>?) =
+        arrayOf(
+            "bash", "-c",
+            joinToCommandLine(
+                "osascript", "-e",
+                """tell app "Terminal" to do script ${
+                    escapeAndQuoteAppleScript(joinToCommandLine("cd", "`pwd`",
+                        *commands?.let { arrayOf("&&", *it) } ?: emptyArray()))
+                }"""
+            )
+        )
+
     override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
-        TODO()
+        getRunProcessWithTerminalCommands(command)
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf(
-            "osascript", "-e",
-            """'tell app "Terminal" to do script ${escapeCommandsToShellString(*commands)}'"""
+        getOpenTerminalInDirectoryCommandsWithPossiblyMoreCommands(
+            arrayOf(*commands, "&&", "exit")
         )
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
-        getRunProcessWithTerminalCommands(*commands, "&", "read")
+        getRunProcessWithTerminalCommands(*commands, "&&", "read")
 
     override fun getOpenTerminalCommands(): Array<String> =
-        arrayOf("open", "-na", "Terminal")
+        getOpenTerminalInDirectoryCommandsWithPossiblyMoreCommands(null)
 }
 
-object WindowsCmdWindowActions : TerminalActions {
+object WindowsCmdStartTerminalActions : TerminalActions {
     // "start" is a CMD command instead of an executable
 
     override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
