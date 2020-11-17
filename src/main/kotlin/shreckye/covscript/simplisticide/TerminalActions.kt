@@ -62,14 +62,14 @@ interface TerminalActions {
 
 object LinuxXTerminalEmulatorActions : TerminalActions {
     override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", command)
+        arrayOf("x-terminal-emulator", "-e", command).also { println(joinToCommandLine(*it)) }
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", joinToCommandLine(*commands))
+        arrayOf("x-terminal-emulator", "-e", joinToCommandLine(*commands)).also { println(joinToCommandLine(*it)) }
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
         getRunProcessWithTerminalCommands(
-            *commands, "&&",
+            *commands, ";",
             // "read" is a bash command instead of an executable
             "bash", "-c", joinToCommandLine("read", "-n1", "-r")
         )
@@ -90,7 +90,7 @@ object MacOSXOpenTerminalActions : TerminalActions {
                 "osascript", "-e",
                 """tell app "Terminal" to do script ${
                     escapeAndQuoteAppleScript(joinToCommandLine("cd", "`pwd`",
-                        *commands?.let { arrayOf("&&", *it) } ?: emptyArray()))
+                        *commands?.let { arrayOf(";", *it) } ?: emptyArray()))
                 }"""
             )
         )
@@ -100,11 +100,11 @@ object MacOSXOpenTerminalActions : TerminalActions {
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
         getOpenTerminalInDirectoryCommandsWithPossiblyMoreCommands(
-            arrayOf(*commands, "&&", "exit")
+            arrayOf(*commands, ";", "exit")
         )
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
-        getRunProcessWithTerminalCommands(*commands, "&&", "read")
+        getRunProcessWithTerminalCommands(*commands, ";", "read")
 
     override fun getOpenTerminalCommands(): Array<String> =
         getOpenTerminalInDirectoryCommandsWithPossiblyMoreCommands(null)
