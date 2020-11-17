@@ -464,7 +464,7 @@ class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Op
                         currentOSTerminalActions.runProcessAndPauseWithTerminal(
                             *listOf(
                                 listOf(csPath),
-                                programArgs.get().split(' '),
+                                programArgs.get().splitToSequence(' ').filter { it.isNotEmpty() }.toList(),
                                 listOfNotNull(
                                     if (compileOnly.get()) "--compile-only" else null,
                                     if (dumpAst.get()) "--dump-ast" else null
