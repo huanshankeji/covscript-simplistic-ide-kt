@@ -90,6 +90,7 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         savedContentBytesProperty.set(contentBytes)
         //contentProperty.set(content)
         contentCodeArea.replaceText(content)
+        contentCodeArea.undoManager.forgetHistory()
     }
 
     fun initNew() = init(null)
