@@ -62,10 +62,10 @@ interface TerminalActions {
 
 object LinuxXTerminalEmulatorActions : TerminalActions {
     override fun getRunNoArgProcessWithTerminalCommands(command: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", command).also { println(joinToCommandLine(*it)) }
+        arrayOf("x-terminal-emulator", "-e", command)
 
     override fun getRunProcessWithTerminalCommands(vararg commands: String): Array<String> =
-        arrayOf("x-terminal-emulator", "-e", joinToCommandLine(*commands)).also { println(joinToCommandLine(*it)) }
+        arrayOf("x-terminal-emulator", "-e", joinToCommandLine(*commands))
 
     override fun getRunProcessAndPauseWithTerminalCommands(vararg commands: String): Array<String> =
         getRunProcessWithTerminalCommands(
