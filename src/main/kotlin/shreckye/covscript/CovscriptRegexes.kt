@@ -7,24 +7,88 @@ val numberLiteralRegex = Regex("\\d+(\\.\\d+)?")
 val preprocessingStatementRegex = Regex("@\\w*")
 
 val keywords = listOf(
-    "and", "or", "not", "typeid", "new",
-    "null", "local", "global", "true", "false", "gcnew",
+    "and",
+    "or",
+    "not",
+    "typeid",
+    "new",
+    "null",
+    "local",
+    "global",
+    "true",
+    "false",
+    "gcnew",
 
-    "import", "as", "package", "namespace", "using", "struct", "class", "extends",
-    "block", "var", "constant", "if", "else", "switch", "case", "default",
-    "end", "while", "loop", "until", "for", "foreach", "in", "do",
-    "break", "continue", "function", "override", "return", "try", "catch", "throw"
+    "import",
+    "as",
+    "package",
+    "namespace",
+    "using",
+    "struct",
+    "class",
+    "extends",
+    "block",
+    "var",
+    "constant",
+    "if",
+    "else",
+    "switch",
+    "case",
+    "default",
+    "end",
+    "while",
+    "loop",
+    "until",
+    "for",
+    "foreach",
+    "in",
+    "do",
+    "break",
+    "continue",
+    "function",
+    "override",
+    "return",
+    "try",
+    "catch",
+    "throw"
 )
-val keywordRegex = Regex("(?:^|\\W)(${keywords.joinToString("|")})(?:$|\\W)")
+val keywordRegex =
+    Regex("(?:^|\\W)(${keywords.joinToString("|")})(?:$|\\W)")
 
 //val literalRegex
 
 val symbols = listOf(
-    "+", "-", "*", "/", "%", "^", ".", "->", "<", ">", "<=", ">=", "==", "!=", "&&", "||",
-    "!", "++", "--",
-    "=", "+=", "-=", "*=", "/=", "%=", "^="
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+    "^",
+    ".",
+    "->",
+    "<",
+    ">",
+    "<=",
+    ">=",
+    "==",
+    "!=",
+    "&&",
+    "||",
+    "!",
+    "++",
+    "--",
+    "=",
+    "+=",
+    "-=",
+    "*=",
+    "/=",
+    "%=",
+    "^="
 )
-val symbolRegex = Regex(symbols.asSequence().map(Regex::escape).joinToString("|"))
+val symbolRegex = Regex(
+    symbols.asSequence().map(Regex::escape)
+        .joinToString("|")
+)
 val functionRegex = Regex("(\\w+) *\\((.*)\\)")
 val variableRegex = Regex("\\w+")
 
@@ -43,13 +107,20 @@ class CovscriptSyntaxSegmentss(
 
 /*private fun Regex.findAllSegmentRangeList(input: CharSequence) =
     findAll(input).map { it.range }.toList()*/
-private fun Regex.findAllSegmentRangeAndFilterFoundList(input: CharSequence, founds: SyntaxSegmentRanges) =
-    findAll(input).map { it.range }.filterFound(founds).toList()
+private fun Regex.findAllSegmentRangeAndFilterFoundList(
+    input: CharSequence,
+    founds: SyntaxSegmentRanges
+) =
+    findAll(input).map { it.range }.filterFound(founds)
+        .toList()
 
 private fun Regex.findAllSegmentGroupRangeAndFilterFoundList(
-    input: CharSequence, groupIndex: Int, founds: SyntaxSegmentRanges
+    input: CharSequence,
+    groupIndex: Int,
+    founds: SyntaxSegmentRanges
 ) =
-    findAll(input).map { it.groups[groupIndex]!!.range }.filterFound(founds).toList()
+    findAll(input).map { it.groups[groupIndex]!!.range }
+        .filterFound(founds).toList()
 
 private fun IntRange.shiftLeft(offset: Int) =
     run { start - offset..endInclusive - offset }
@@ -60,13 +131,18 @@ private fun IntRange.shiftRight(offset: Int) =
 private fun findAllFunctionSegmentGroupRangeAndFilterFoundList(
     input: CharSequence, founds: SyntaxSegmentRanges
 ): List<IntRange> =
-    findAllFunctionSegmentGroupRangeAndFilterFound(input, founds).toList()
+    findAllFunctionSegmentGroupRangeAndFilterFound(
+        input,
+        founds
+    ).toList()
 
 private fun findAllFunctionSegmentGroupRangeAndFilterFound(
     input: CharSequence, founds: SyntaxSegmentRanges
 ): Sequence<IntRange> {
-    val groups = functionRegex.findAll(input).map(MatchResult::groups).toList()
-    val functions = groups.asSequence().map { it[1]!!.range }
+    val groups = functionRegex.findAll(input)
+        .map(MatchResult::groups).toList()
+    val functions =
+        groups.asSequence().map { it[1]!!.range }
     val argumentGroups = groups.asSequence().map { it[2]!! }
     return if (argumentGroups.none()) functions
     else functions + argumentGroups.flatMap { group ->
@@ -87,21 +163,54 @@ private infix fun IntRange.doesNotOverlap(that: IntRange) =
 fun findCovscriptSyntaxSegmentss(text: String): CovscriptSyntaxSegmentss {
     val founds = mutableListOf<IntRange>()
 
-    val comments = commentRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val comments =
+        commentRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += comments
-    val stringLiterals = stringLiteralRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val stringLiterals =
+        stringLiteralRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += stringLiterals
-    val numberLiterals = numberLiteralRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val numberLiterals =
+        numberLiteralRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += numberLiterals
-    val preprocessingStatements = preprocessingStatementRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val preprocessingStatements =
+        preprocessingStatementRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += preprocessingStatements
-    val keywords = keywordRegex.findAllSegmentGroupRangeAndFilterFoundList(text, 1, founds)
+    val keywords =
+        keywordRegex.findAllSegmentGroupRangeAndFilterFoundList(
+            text,
+            1,
+            founds
+        )
     founds += keywords
-    val symbols = symbolRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val symbols =
+        symbolRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += symbols
-    val functions = findAllFunctionSegmentGroupRangeAndFilterFoundList(text, founds)
+    val functions =
+        findAllFunctionSegmentGroupRangeAndFilterFoundList(
+            text,
+            founds
+        )
     founds += functions
-    val variables = variableRegex.findAllSegmentRangeAndFilterFoundList(text, founds)
+    val variables =
+        variableRegex.findAllSegmentRangeAndFilterFoundList(
+            text,
+            founds
+        )
 
     return CovscriptSyntaxSegmentss(
         comments,

@@ -4,15 +4,25 @@ import javafx.beans.property.SimpleObjectProperty
 import java.nio.charset.Charset
 
 fun Indentation.type() = this::class
-fun Indentation.numberOrNull() = (this as? Indentation.Spaces)?.number
-fun indentationFromTypeAndNumber(type: IndentationType, number: Int?): Indentation =
+fun Indentation.numberOrNull() =
+    (this as? Indentation.Spaces)?.number
+
+fun indentationFromTypeAndNumber(
+    type: IndentationType,
+    number: Int?
+): Indentation =
     when (type) {
-        Indentation.Spaces::class -> Indentation.Spaces(number!!)
+        Indentation.Spaces::class -> Indentation.Spaces(
+            number!!
+        )
         Indentation.Tab::class -> Indentation.Tab
         else -> throw IllegalArgumentException()
     }
 
-fun indentationFromTypeWithNullForDefaultAndNumber(type: IndentationType?, number: Int?): Indentation? =
+fun indentationFromTypeWithNullForDefaultAndNumber(
+    type: IndentationType?,
+    number: Int?
+): Indentation? =
     type?.let { indentationFromTypeAndNumber(it, number) }
 
 /*fun tryIndentationFromTypeWithNullForDefaultAndNumber(type: KClass<out Indentation>?, number: Int?): Try<Indentation?> =
@@ -34,23 +44,28 @@ interface IEditAppPreferenceProperties {
 
         lineSeparatorProperty.get(),
         fileEncodingProperty.get(),
-        indentationFromTypeWithNullForDefaultAndNumber(indentationTypeProperty.get(), indentationNumberProperty.get()),
+        indentationFromTypeWithNullForDefaultAndNumber(
+            indentationTypeProperty.get(),
+            indentationNumberProperty.get()
+        ),
         fontSizeProperty.get()
     )
 
-    fun setAll(appPreferences: AppPreferences) = with(appPreferences) {
-        sdkPathProperty.set(sdkPath)
+    fun setAll(appPreferences: AppPreferences) =
+        with(appPreferences) {
+            sdkPathProperty.set(sdkPath)
 
-        lineSeparatorProperty.set(lineSeparator)
-        fileEncodingProperty.set(fileEncoding)
-        with(appPreferences.indentation) {
-            indentationTypeProperty.set(this?.type())
-            indentationNumberProperty.set(this?.numberOrNull())
+            lineSeparatorProperty.set(lineSeparator)
+            fileEncodingProperty.set(fileEncoding)
+            with(appPreferences.indentation) {
+                indentationTypeProperty.set(this?.type())
+                indentationNumberProperty.set(this?.numberOrNull())
+            }
+            fontSizeProperty.set(fontSize)
         }
-        fontSizeProperty.set(fontSize)
-    }
 
-    fun setAllNullForDefault() = setAll(nullForDefaultAppPreferences)
+    fun setAllNullForDefault() =
+        setAll(nullForDefaultAppPreferences)
 }
 
 data class EditAppPreferenceProperties(

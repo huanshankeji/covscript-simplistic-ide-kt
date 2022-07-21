@@ -22,15 +22,27 @@ sealed class Indentation {
 
         override fun stringToData(string: String): Indentation =
             when {
-                string.startsWith("spaces(") && string.endsWith(")") ->
-                    Spaces(string.substring(7, string.length - 1).toInt())
+                string.startsWith("spaces(") && string.endsWith(
+                    ")"
+                ) ->
+                    Spaces(
+                        string.substring(
+                            7,
+                            string.length - 1
+                        ).toInt()
+                    )
                 string.startsWith("tab") -> Tab
-                else -> throw IllegalArgumentException(string)
+                else -> throw IllegalArgumentException(
+                    string
+                )
             }
     }
 }
 
 typealias IndentationType = KClass<out Indentation>
 
-fun Indentation.serializeToString() = Indentation.dataToString(this)
-fun String.deserializeToIndentation() = Indentation.stringToData(this)
+fun Indentation.serializeToString() =
+    Indentation.dataToString(this)
+
+fun String.deserializeToIndentation() =
+    Indentation.stringToData(this)

@@ -7,11 +7,20 @@ import javafx.util.StringConverter
 import tornadofx.textfield
 
 @JvmName("textfieldNullableInt")
-fun EventTarget.textfield(property: Property<Int?>, op: TextField.() -> Unit = {}) =
-    @Suppress("UNCHECKED_CAST") textfield(property as Property<Int>, op)
+fun EventTarget.textfield(
+    property: Property<Int?>,
+    op: TextField.() -> Unit = {}
+) =
+    @Suppress("UNCHECKED_CAST") textfield(
+        property as Property<Int>,
+        op
+    )
 
 @JvmName("textfieldNullableDouble")
-fun EventTarget.textfield(property: Property<Double?>, op: TextField.() -> Unit = {}) =
+fun EventTarget.textfield(
+    property: Property<Double?>,
+    op: TextField.() -> Unit = {}
+) =
     textfield(
         property,
         object : StringConverter<Double?>() {

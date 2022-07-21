@@ -13,4 +13,12 @@ inline fun UIComponent.currentWindowAlert(
     title: String? = null,
     actionFn: Alert.(ButtonType) -> Unit = {}
 ): Alert =
-    alert(type, header, content, buttons = buttons, currentWindow, title, actionFn)
+    alert(
+        type,
+        header,
+        content,
+        buttons = buttons,
+        currentWindow,
+        title,
+        actionFn
+    )

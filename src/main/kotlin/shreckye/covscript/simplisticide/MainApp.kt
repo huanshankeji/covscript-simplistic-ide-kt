@@ -30,18 +30,24 @@ import java.util.*
 
 class MainApp : App(MainFragment::class)
 
-class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_NAME),
+class MainFragment(val preferencesVM: AppPreferencesVM = find()) :
+    Fragment(APP_NAME),
     IAppPreferenceReadOnlyProperties by preferencesVM {
     val fileProperty = SimpleObjectProperty<File?>()
-    val savedContentBytesProperty = SimpleObjectProperty<ByteArray?>()
+    val savedContentBytesProperty =
+        SimpleObjectProperty<ByteArray?>()
     //val contentProperty = SimpleStringProperty()
 
     fun getContentBytes() =
         /*contentProperty.get()*/
         contentCodeArea.text.replace(
             javafxLineSeparator.toLineSeparatorString(),
-            lineSeparatorProperty.get().orDefault().toLineSeparatorString()
-        ).toByteArray(fileEncodingProperty.get().orFileEncodingDefault())
+            lineSeparatorProperty.get().orDefault()
+                .toLineSeparatorString()
+        ).toByteArray(
+            fileEncodingProperty.get()
+                .orFileEncodingDefault()
+        )
 
     lateinit var contentCodeArea: CodeArea
 
@@ -51,23 +57,34 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             initContent(null, "")
         else {
             val fileContentBytes = file.readBytes()
-            val fileContentWithEncodingProcessedButLineSeparatorNotProcessed = fileContentBytes
-                .toString(fileEncodingProperty.get().orFileEncodingDefault())
+            val fileContentWithEncodingProcessedButLineSeparatorNotProcessed =
+                fileContentBytes
+                    .toString(
+                        fileEncodingProperty.get()
+                            .orFileEncodingDefault()
+                    )
 
-            val fileContent = fileContentWithEncodingProcessedButLineSeparatorNotProcessed.replace(
-                lineSeparatorProperty.get().orDefault().toLineSeparatorString(),
-                javafxLineSeparator.toLineSeparatorString()
-            )
+            val fileContent =
+                fileContentWithEncodingProcessedButLineSeparatorNotProcessed.replace(
+                    lineSeparatorProperty.get().orDefault()
+                        .toLineSeparatorString(),
+                    javafxLineSeparator.toLineSeparatorString()
+                )
             initContent(fileContentBytes, fileContent)
 
             // Show warnings on line separators if needed
             val distinctSeparators =
-                extractDistinctSeparators(fileContentWithEncodingProcessedButLineSeparatorNotProcessed)
+                extractDistinctSeparators(
+                    fileContentWithEncodingProcessedButLineSeparatorNotProcessed
+                )
             when (distinctSeparators.size) {
                 0 -> Unit
                 1 -> {
-                    val separator = distinctSeparators.single()
-                    val preferenceSeparator = lineSeparatorProperty.get().orDefault()
+                    val separator =
+                        distinctSeparators.single()
+                    val preferenceSeparator =
+                        lineSeparatorProperty.get()
+                            .orDefault()
                     if (separator !== preferenceSeparator)
                         currentWindowAlert(
                             Alert.AlertType.WARNING,
@@ -86,7 +103,10 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         }
     }
 
-    private fun initContent(contentBytes: ByteArray?, content: String) {
+    private fun initContent(
+        contentBytes: ByteArray?,
+        content: String
+    ) {
         savedContentBytesProperty.set(contentBytes)
         //contentProperty.set(content)
         contentCodeArea.replaceText(content)
@@ -95,12 +115,22 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
 
     fun initNew() = init(null)
 
-    fun showSaveWarningIfEdited(continuation: () -> Unit, cancelContinuation: () -> Unit) {
+    fun showSaveWarningIfEdited(
+        continuation: () -> Unit,
+        cancelContinuation: () -> Unit
+    ) {
         val bytes = getContentBytes()
-        if (!(bytes contentEquals (savedContentBytesProperty.get() ?: ByteArray(0))))
+        if (!(bytes contentEquals (savedContentBytesProperty.get()
+                ?: ByteArray(0)))
+        )
             currentWindowAlert(
-                Alert.AlertType.WARNING, "The file has been edited. Save it?",
-                buttons = arrayOf(ButtonType.YES, ButtonType.NO, ButtonType.CANCEL)
+                Alert.AlertType.WARNING,
+                "The file has been edited. Save it?",
+                buttons = arrayOf(
+                    ButtonType.YES,
+                    ButtonType.NO,
+                    ButtonType.CANCEL
+                )
             ) {
                 when (it) {
                     ButtonType.YES -> {
@@ -119,7 +149,9 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     fun showSaveWarningIfEditedWithContinuation(continuation: () -> Unit) =
         showSaveWarningIfEdited(continuation, {})
 
-    fun showSaveWarningIfEditedWithCancelContinuation(cancelContinuation: () -> Unit) =
+    fun showSaveWarningIfEditedWithCancelContinuation(
+        cancelContinuation: () -> Unit
+    ) =
         showSaveWarningIfEdited({}, cancelContinuation)
 
     fun save(bytes: ByteArray = getContentBytes()): Boolean {
@@ -136,8 +168,14 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         val oldFile = fileProperty.get()
         val file =
             chooseFile(
-                "Save As...", SAVE_FILE_FILTERS, oldFile?.parentFile, FileChooserMode.Save, currentWindow
-            ) { initialFileName = oldFile?.name }.getOrNull(0)
+                "Save As...",
+                SAVE_FILE_FILTERS,
+                oldFile?.parentFile,
+                FileChooserMode.Save,
+                currentWindow
+            ) { initialFileName = oldFile?.name }.getOrNull(
+                0
+            )
         return file?.let {
             fileProperty.set(it)
             saveAs(bytes, it)
@@ -154,7 +192,12 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         val sdkPath = sdkPathProperty.get()
         val file = fileProperty.get()
         if (sdkPath !== null && file !== null)
-            showSaveWarningIfEditedWithContinuation { block(sdkPath, file) }
+            showSaveWarningIfEditedWithContinuation {
+                block(
+                    sdkPath,
+                    file
+                )
+            }
         else
             currentWindowAlert(
                 Alert.AlertType.ERROR,
@@ -166,14 +209,27 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     }
 
     private fun getCsPath(sdkPath: String) =
-        Path.of(sdkPath, BinDirectory.NAME, BinDirectory.cs).toString()
+        Path.of(sdkPath, BinDirectory.NAME, BinDirectory.cs)
+            .toString()
 
     fun checkSdkPathAndFileAndThenRunWithCs(block: (csPath: String, file: File) -> Unit) =
-        checkSdkPathAndFileAndThenRun { sdkPath, file -> block(getCsPath(sdkPath), file) }
+        checkSdkPathAndFileAndThenRun { sdkPath, file ->
+            block(
+                getCsPath(sdkPath),
+                file
+            )
+        }
 
     fun getDumpAstText(csPath: String, file: File): String {
-        val process = startProcess(csPath, "--compile-only", "--dump-ast", "--no-optimize", file.path)
-        return process.inputStream.bufferedReader().use(Reader::readText)
+        val process = startProcess(
+            csPath,
+            "--compile-only",
+            "--dump-ast",
+            "--no-optimize",
+            file.path
+        )
+        return process.inputStream.bufferedReader()
+            .use(Reader::readText)
     }
 
     fun checkSdkPathAndThenRun(block: (sdkPath: String) -> Unit) {
@@ -181,11 +237,20 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         if (sdkPath !== null)
             block(sdkPath)
         else
-            currentWindowAlert(Alert.AlertType.ERROR, "SDK path is not set")
+            currentWindowAlert(
+                Alert.AlertType.ERROR,
+                "SDK path is not set"
+            )
     }
 
     fun checkSdkPathAndThenRunWithCs(block: (csPath: String) -> Unit) =
-        checkSdkPathAndThenRun { sdkPath -> block(getCsPath(sdkPath)) }
+        checkSdkPathAndThenRun { sdkPath ->
+            block(
+                getCsPath(
+                    sdkPath
+                )
+            )
+        }
 
     override fun onBeforeShow() {
         super.onBeforeShow()
@@ -202,11 +267,17 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 item("New", "Ctrl+N") {
                     action {
                         currentWindowAlert(
-                            Alert.AlertType.CONFIRMATION, "Open in a new window?",
-                            buttons = arrayOf(ButtonType.YES, ButtonType.NO)
+                            Alert.AlertType.CONFIRMATION,
+                            "Open in a new window?",
+                            buttons = arrayOf(
+                                ButtonType.YES,
+                                ButtonType.NO
+                            )
                         ) {
                             when (it) {
-                                ButtonType.YES -> find<MainFragment>().openWindow(owner = null)
+                                ButtonType.YES -> find<MainFragment>().openWindow(
+                                    owner = null
+                                )
                                 ButtonType.NO -> showSaveWarningIfEditedWithContinuation { initNew() }
                             }
                         }
@@ -216,7 +287,10 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                     action {
                         showSaveWarningIfEditedWithContinuation {
                             val file = chooseFile(
-                                "Open...", SAVE_FILE_FILTERS, fileProperty.get()?.parentFile, owner = currentWindow
+                                "Open...",
+                                SAVE_FILE_FILTERS,
+                                fileProperty.get()?.parentFile,
+                                owner = currentWindow
                             ).getOrNull(0)
                             file?.let { init(it) }
                         }
@@ -224,20 +298,41 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 }
                 separator()
                 item("Save", "Ctrl+S") { action { save() } }
-                item("Save As...", "Ctrl+Shift+S") { action { saveAs() } }
+                item(
+                    "Save As...",
+                    "Ctrl+Shift+S"
+                ) { action { saveAs() } }
                 separator()
                 item("Exit") { action { showSaveWarningIfEditedWithContinuation { close() } } }
             }
 
             menu("Edit") {
                 // Lambdas can't be replaced with references here for the var `contentCodeArea`
-                item("Undo", "Ctrl+Z") { action { contentCodeArea.undo() } }
-                item("Redo", "Ctrl+Shift+Z") { action { contentCodeArea.redo() } }
+                item(
+                    "Undo",
+                    "Ctrl+Z"
+                ) { action { contentCodeArea.undo() } }
+                item(
+                    "Redo",
+                    "Ctrl+Shift+Z"
+                ) { action { contentCodeArea.redo() } }
                 separator()
-                item("Cut", "Ctrl+X") { action { contentCodeArea.cut() } }
-                item("Copy", "Ctrl+C") { action { contentCodeArea.copy() } }
-                item("Paste", "Ctrl+V") { action { contentCodeArea.paste() } }
-                item("Select All", "Ctrl+A") { action { contentCodeArea.selectAll() } }
+                item(
+                    "Cut",
+                    "Ctrl+X"
+                ) { action { contentCodeArea.cut() } }
+                item(
+                    "Copy",
+                    "Ctrl+C"
+                ) { action { contentCodeArea.copy() } }
+                item(
+                    "Paste",
+                    "Ctrl+V"
+                ) { action { contentCodeArea.paste() } }
+                item(
+                    "Select All",
+                    "Ctrl+A"
+                ) { action { contentCodeArea.selectAll() } }
             }
 
             menu("Tools") {
@@ -252,32 +347,58 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                         }
                     }
                 }
-                item("Run with Options...") { action { RunWithOptionsFragment(this@MainFragment).openWindow() } }
+                item("Run with Options...") {
+                    action {
+                        RunWithOptionsFragment(
+                            this@MainFragment
+                        ).openWindow()
+                    }
+                }
                 item("Dump AST to...") {
                     action {
                         checkSdkPathAndFileAndThenRunWithCs { csPath, file ->
-                            val dumpAstText = getDumpAstText(csPath, file)
+                            val dumpAstText =
+                                getDumpAstText(csPath, file)
                             val dumpAstFile = chooseFile(
                                 "Dump AST to...",
-                                AST_FILE_FILTERS, file.parentFile, FileChooserMode.Save, currentWindow
+                                AST_FILE_FILTERS,
+                                file.parentFile,
+                                FileChooserMode.Save,
+                                currentWindow
                             ) {
-                                initialFileName = file.name.run {
-                                    val lastDotIndex = lastIndexOf(".")
-                                    val baseName = if (lastDotIndex != -1) substring(0, lastDotIndex) else this
-                                    "$baseName.csa"
-                                }
+                                initialFileName =
+                                    file.name.run {
+                                        val lastDotIndex =
+                                            lastIndexOf(".")
+                                        val baseName =
+                                            if (lastDotIndex != -1) substring(
+                                                0,
+                                                lastDotIndex
+                                            ) else this
+                                        "$baseName.csa"
+                                    }
                             }
                                 .getOrNull(0)
-                            dumpAstFile?.run { writeText(dumpAstText) }
+                            dumpAstFile?.run {
+                                writeText(
+                                    dumpAstText
+                                )
+                            }
                         }
                     }
                 }
                 item("Run Debugger") {
                     action {
                         checkSdkPathAndFileAndThenRun { sdkPath, file ->
-                            val csDbgPath = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csDbg).toString()
+                            val csDbgPath = Path.of(
+                                sdkPath,
+                                BinDirectory.NAME,
+                                BinDirectory.csDbg
+                            ).toString()
                             currentOSTerminalActions.runProcessWithTerminal(
-                                csDbgPath, file.name, directory = file.parentFile
+                                csDbgPath,
+                                file.name,
+                                directory = file.parentFile
                             )
                         }
                     }
@@ -285,33 +406,55 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 separator()
                 item("Terminal") {
                     action {
-                        fileProperty.get()?.let { currentOSTerminalActions.openTerminal(it.parentFile) }
+                        fileProperty.get()?.let {
+                            currentOSTerminalActions.openTerminal(
+                                it.parentFile
+                            )
+                        }
                             ?: currentOSTerminalActions.openTerminal()
                     }
                 }
                 item("View Error Info") {
                     action {
                         checkSdkPathAndThenRun { sdkPath ->
-                            val csLogFile = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csLog).toFile()
+                            val csLogFile = Path.of(
+                                sdkPath,
+                                BinDirectory.NAME,
+                                BinDirectory.csLog
+                            ).toFile()
                             if (csLogFile.exists()) {
-                                val errorText = csLogFile.readText()
-                                currentWindowAlert(Alert.AlertType.INFORMATION, "Error Info", errorText)
+                                val errorText =
+                                    csLogFile.readText()
+                                currentWindowAlert(
+                                    Alert.AlertType.INFORMATION,
+                                    "Error Info",
+                                    errorText
+                                )
                             } else
-                                currentWindowAlert(Alert.AlertType.INFORMATION, "No Error Info")
+                                currentWindowAlert(
+                                    Alert.AlertType.INFORMATION,
+                                    "No Error Info"
+                                )
                         }
                     }
                 }
                 item("Run Installer") {
                     action {
                         checkSdkPathAndThenRun { sdkPath ->
-                            val csInstFile = Path.of(sdkPath, BinDirectory.NAME, BinDirectory.csInst).toFile()
+                            val csInstFile = Path.of(
+                                sdkPath,
+                                BinDirectory.NAME,
+                                BinDirectory.csInst
+                            ).toFile()
                             desktopOpen(csInstFile)
                         }
                     }
                 }
                 item("REPL") {
                     action {
-                        checkSdkPathAndThenRunWithCs(currentOSTerminalActions::runProcessWithTerminal)
+                        checkSdkPathAndThenRunWithCs(
+                            currentOSTerminalActions::runProcessWithTerminal
+                        )
                     }
                 }
                 separator()
@@ -319,13 +462,24 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 item("Add SDK Extensions...") {
                     action {
                         checkSdkPathAndThenRun { sdkPath ->
-                            val file = chooseFile("Install SDK Extensions...", EXTENSION_FILE_FILTERS).getOrNull(0)
+                            val file = chooseFile(
+                                "Install SDK Extensions...",
+                                EXTENSION_FILE_FILTERS
+                            ).getOrNull(0)
                             file?.let {
                                 try {
-                                    Files.copy(file.toPath(), Path.of(sdkPath, IMPORTS_DIRECTORY, file.name))
+                                    Files.copy(
+                                        file.toPath(),
+                                        Path.of(
+                                            sdkPath,
+                                            IMPORTS_DIRECTORY,
+                                            file.name
+                                        )
+                                    )
                                 } catch (e: FileAlreadyExistsException) {
                                     currentWindowAlert(
-                                        Alert.AlertType.ERROR, "An extension file with the same name already exists"
+                                        Alert.AlertType.ERROR,
+                                        "An extension file with the same name already exists"
                                     )
                                 }
                             }
@@ -351,7 +505,12 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
                 item("View Documentation") {
                     action {
                         checkSdkPathAndThenRun { sdkPath ->
-                            desktopOpen(File(sdkPath, DOCS_DIRECTORY))
+                            desktopOpen(
+                                File(
+                                    sdkPath,
+                                    DOCS_DIRECTORY
+                                )
+                            )
                         }
                     }
                 }
@@ -362,43 +521,85 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
         center = VirtualizedScrollPane(CodeArea().apply {
             // Couldn't find an appropriate bind function
             fontSizeProperty.bindByOnChange {
-                style { fontSize = it.orFontSizeDefault().px }
+                style {
+                    fontSize = it.orFontSizeDefault().px
+                }
             }
             setOnKeyTyped {
                 if (it.character == "\t") {
                     val currentParagraph = currentParagraph
                     val caretColumn = caretColumn
                     replaceText(
-                        currentParagraph, caretColumn - 1, currentParagraph, caretColumn,
-                        indentationProperty.get().orDefault().text
+                        currentParagraph,
+                        caretColumn - 1,
+                        currentParagraph,
+                        caretColumn,
+                        indentationProperty.get()
+                            .orDefault().text
                     )
                 }
             }
 
-            paragraphGraphicFactory = LineNumberFactory.get(this)
-            stylesheets.add(MainFragment::class.java.getResource("covscript-highlight.css").toExternalForm())
+            paragraphGraphicFactory =
+                LineNumberFactory.get(this)
+            stylesheets.add(
+                MainFragment::class.java.getResource(
+                    "covscript-highlight.css"
+                ).toExternalForm()
+            )
             paragraphs.addModificationObserver {
                 for (parIndex in it.from until it.to) {
-                    val syntaxSegmentss = findCovscriptSyntaxSegmentss(getText(parIndex))
+                    val syntaxSegmentss =
+                        findCovscriptSyntaxSegmentss(
+                            getText(parIndex)
+                        )
 
-                    fun highlightSegments(ranges: SyntaxSegmentRanges, cssClass: String) {
+                    fun highlightSegments(
+                        ranges: SyntaxSegmentRanges,
+                        cssClass: String
+                    ) {
                         for (range in ranges)
                             setStyle(
-                                parIndex, range.start, range.endInclusive + 1,
-                                Collections.singleton(cssClass)
+                                parIndex,
+                                range.start,
+                                range.endInclusive + 1,
+                                Collections.singleton(
+                                    cssClass
+                                )
                             )
                     }
 
                     with(syntaxSegmentss) {
                         // Follows Visual Studio Code Light+ Color Theme C++ color scheme
-                        highlightSegments(comments, "comment")
-                        highlightSegments(stringLiterals, "string-literal")
-                        highlightSegments(numberLiterals, "number-literal")
-                        highlightSegments(preprocessingStatements, "preprocessing-statement")
-                        highlightSegments(keywords, "keyword")
+                        highlightSegments(
+                            comments,
+                            "comment"
+                        )
+                        highlightSegments(
+                            stringLiterals,
+                            "string-literal"
+                        )
+                        highlightSegments(
+                            numberLiterals,
+                            "number-literal"
+                        )
+                        highlightSegments(
+                            preprocessingStatements,
+                            "preprocessing-statement"
+                        )
+                        highlightSegments(
+                            keywords,
+                            "keyword"
+                        )
                         highlightSegments(symbols, "symbol")
-                        highlightSegments(functions, "function")
-                        highlightSegments(variables, "variable")
+                        highlightSegments(
+                            functions,
+                            "function"
+                        )
+                        highlightSegments(
+                            variables,
+                            "variable"
+                        )
                     }
                 }
             }
@@ -416,23 +617,44 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
             setRightAnchor(hbox {
                 spacing = defaultFontSize
 
-                val lineProperty = contentCodeArea.currentParagraphProperty()
-                val columnProperty = contentCodeArea.caretColumnProperty()
-                label(stringBinding(lineProperty, columnProperty) {
-                    "Ln ${lineProperty.value + 1}, Col ${columnProperty.value + 1}"
-                })
+                val lineProperty =
+                    contentCodeArea.currentParagraphProperty()
+                val columnProperty =
+                    contentCodeArea.caretColumnProperty()
+                label(
+                    stringBinding(
+                        lineProperty,
+                        columnProperty
+                    ) {
+                        "Ln ${lineProperty.value + 1}, Col ${columnProperty.value + 1}"
+                    })
 
                 label(lineSeparatorProperty.stringBinding {
-                    toEnglishStringWithNullForDefault(defaultLineSeparator, it, LineSeparator::name)
+                    toEnglishStringWithNullForDefault(
+                        defaultLineSeparator,
+                        it,
+                        LineSeparator::name
+                    )
                 })
                 label(fileEncodingProperty.stringBinding {
-                    toEnglishStringWithNullForDefault(defaultFileEncoding, it, Charset::name)
+                    toEnglishStringWithNullForDefault(
+                        defaultFileEncoding,
+                        it,
+                        Charset::name
+                    )
                 })
                 label(indentationProperty.stringBinding {
-                    toEnglishStringWithNullForDefault(defaultIndentation, it, Indentation::toEnglishString)
+                    toEnglishStringWithNullForDefault(
+                        defaultIndentation,
+                        it,
+                        Indentation::toEnglishString
+                    )
                 })
                 label(fontSizeProperty.stringBinding {
-                    toEnglishStringWithNullForDefault(defaultFontSize, it) { "$it px" }
+                    toEnglishStringWithNullForDefault(
+                        defaultFontSize,
+                        it
+                    ) { "$it px" }
                 })
             }, 0.0)
         }
@@ -444,7 +666,8 @@ class MainFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment(APP_
     }
 }
 
-class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Options") {
+class RunWithOptionsFragment(mainFragment: MainFragment) :
+    Fragment("Run with Options") {
     val programArgs = SimpleStringProperty("")
     val compileOnly = SimpleBooleanProperty()
     val dumpAst = SimpleBooleanProperty()
@@ -452,7 +675,11 @@ class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Op
     override val root = vbox {
         form {
             fieldset {
-                field("Program arguments") { textfield(programArgs) }
+                field("Program arguments") {
+                    textfield(
+                        programArgs
+                    )
+                }
             }
             checkbox("Compile only", compileOnly)
             checkbox("Dump AST", dumpAst)
@@ -464,13 +691,17 @@ class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Op
                         currentOSTerminalActions.runProcessAndPauseWithTerminal(
                             *listOf(
                                 listOf(csPath),
-                                programArgs.get().splitToSequence(' ').filter { it.isNotEmpty() }.toList(),
+                                programArgs.get()
+                                    .splitToSequence(' ')
+                                    .filter { it.isNotEmpty() }
+                                    .toList(),
                                 listOfNotNull(
                                     if (compileOnly.get()) "--compile-only" else null,
                                     if (dumpAst.get()) "--dump-ast" else null
                                 ),
                                 listOf(file.name)
-                            ).flatten().toTypedArray(), directory = file.parentFile
+                            ).flatten().toTypedArray(),
+                            directory = file.parentFile
                         )
                     }
                 }
@@ -479,13 +710,18 @@ class RunWithOptionsFragment(mainFragment: MainFragment) : Fragment("Run with Op
     }
 }
 
-class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragment("Preferences"),
+class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) :
+    Fragment("Preferences"),
     IEditAppPreferenceProperties by preferencesVM.copyToEditProperties() {
     override val root = vbox {
         form {
             fieldset("Environment settings") {
                 field("SDK path") {
-                    textfield(sdkPathProperty.bindingWithNullForDefault("")) {
+                    textfield(
+                        sdkPathProperty.bindingWithNullForDefault(
+                            ""
+                        )
+                    ) {
                         promptText = "not set"
                     }
                 }
@@ -493,26 +729,44 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
 
             fieldset("Editor settings") {
                 field("Line separator") {
-                    combobox(lineSeparatorProperty, lineSeparatorsWithNullForDefault) {
+                    combobox(
+                        lineSeparatorProperty,
+                        lineSeparatorsWithNullForDefault
+                    ) {
                         converter =
-                            toEnglishStringOnlyConverterWithNullForDefault(defaultLineSeparator, LineSeparator::name)
+                            toEnglishStringOnlyConverterWithNullForDefault(
+                                defaultLineSeparator,
+                                LineSeparator::name
+                            )
                     }
                 }
                 field("File encoding") {
-                    combobox(fileEncodingProperty, fileEncodingsWithNullForDefault) {
-                        converter = toEnglishStringOnlyConverterWithNullForDefault(defaultFileEncoding, Charset::name)
+                    combobox(
+                        fileEncodingProperty,
+                        fileEncodingsWithNullForDefault
+                    ) {
+                        converter =
+                            toEnglishStringOnlyConverterWithNullForDefault(
+                                defaultFileEncoding,
+                                Charset::name
+                            )
                     }
                 }
                 field("Indentation") {
-                    combobox(indentationTypeProperty, indentationTypesWithNullForDefault) {
-                        converter = toEnglishStringOnlyConverterWithNullForDefault(
-                            defaultIndentation.toEnglishString(),
-                            IndentationType::toEnglishString
-                        )
+                    combobox(
+                        indentationTypeProperty,
+                        indentationTypesWithNullForDefault
+                    ) {
+                        converter =
+                            toEnglishStringOnlyConverterWithNullForDefault(
+                                defaultIndentation.toEnglishString(),
+                                IndentationType::toEnglishString
+                            )
                     }
                     field("Number") {
                         textfield(indentationNumberProperty) {
-                            enableWhen(indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class })
+                            enableWhen(
+                                indentationTypeProperty.booleanBinding { it == Indentation.Spaces::class })
                             filterInput { it.controlNewText.isPositiveInt() }
                         }
                     }
@@ -520,7 +774,8 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
                 field("Font size") {
                     textfield(fontSizeProperty) {
                         filterInput { it.controlNewText.isPositiveDouble() }
-                        promptText = "default: $defaultFontSize"
+                        promptText =
+                            "default: $defaultFontSize"
                     }
                 }
             }
@@ -535,7 +790,10 @@ class PreferencesFragment(val preferencesVM: AppPreferencesVM = find()) : Fragme
                         getAll()
                     } catch (e: Exception) {
                         //e.printStackTrace()
-                        currentWindowAlert(Alert.AlertType.ERROR, "Please enter valid preference values.")
+                        currentWindowAlert(
+                            Alert.AlertType.ERROR,
+                            "Please enter valid preference values."
+                        )
                         null
                     }
 
@@ -566,13 +824,23 @@ class AboutAppView : View("About $APP_NAME") {
     override val root = vbox {
         spacing = defaultFontSize
         vbox {
-            text(APP_NAME) { style { fontWeight = FontWeight.BOLD } }
+            text(APP_NAME) {
+                style {
+                    fontWeight = FontWeight.BOLD
+                }
+            }
             text("Version: $VERSION")
         }
         text(LICENSE)
         textflow {
             text("GitHub repository: ")
-            hyperlink(URL) { action { hostServices.showDocument(text) } }
+            hyperlink(URL) {
+                action {
+                    hostServices.showDocument(
+                        text
+                    )
+                }
+            }
         }
     }
 }
@@ -587,11 +855,23 @@ class AboutCovscriptAndSdkView : View("About CovScript") {
         }
         textflow {
             text("Homepage: ")
-            hyperlink(COVSCRIPT_HOMEPATE_URL) { action { hostServices.showDocument(text) } }
+            hyperlink(COVSCRIPT_HOMEPATE_URL) {
+                action {
+                    hostServices.showDocument(
+                        text
+                    )
+                }
+            }
         }
         textflow {
             text("GitHub repository: ")
-            hyperlink(COVSCRIPT_GITHUB_URL) { action { hostServices.showDocument(text) } }
+            hyperlink(COVSCRIPT_GITHUB_URL) {
+                action {
+                    hostServices.showDocument(
+                        text
+                    )
+                }
+            }
         }
     }
 }

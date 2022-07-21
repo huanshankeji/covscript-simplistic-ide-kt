@@ -14,13 +14,18 @@ val defaultSdkPath: String? = null
 
 const val LINE_SEPARATOR_KEY = "line separator"
 val defaultLineSeparator get() = systemLineSeparator
-fun LineSeparator?.orDefault() = this ?: defaultLineSeparator
+fun LineSeparator?.orDefault() =
+    this ?: defaultLineSeparator
+
 val lineSeparators = LineSeparator.values().asList()
-val lineSeparatorsWithNullForDefault = listOf(null) + lineSeparators
+val lineSeparatorsWithNullForDefault =
+    listOf(null) + lineSeparators
 
 const val FILE_ENCODING_KEY = "file encoding"
 val defaultFileEncoding: Charset get() = Charset.defaultCharset()
-fun Charset?.orFileEncodingDefault() = this ?: defaultFileEncoding
+fun Charset?.orFileEncodingDefault() =
+    this ?: defaultFileEncoding
+
 val fileEncodings get() = Charset.availableCharsets().values.toList()
 val fileEncodingsWithNullForDefault get() = listOf(null) + fileEncodings
 
@@ -31,7 +36,8 @@ fun Int?.orDefaultSpacesNumber() = this?: DEFAULT_SPACES_NUMBER*/
 val defaultIndentation = Indentation.Spaces(4)
 fun Indentation?.orDefault() = this ?: defaultIndentation
 val indentationTypes = Indentation::class.sealedSubclasses
-val indentationTypesWithNullForDefault = listOf(null) + indentationTypes
+val indentationTypesWithNullForDefault =
+    listOf(null) + indentationTypes
 
 const val FONT_SIZE_KEY = "font size"
 val defaultFontSize get() = Font.getDefault().size
@@ -40,7 +46,10 @@ fun Double?.orFontSizeDefault() = this ?: defaultFontSize
 
 class AppPreferences(
     val sdkPath: String?,
-    val lineSeparator: LineSeparator?, val fileEncoding: Charset?, val indentation: Indentation?, val fontSize: Double?
+    val lineSeparator: LineSeparator?,
+    val fileEncoding: Charset?,
+    val indentation: Indentation?,
+    val fontSize: Double?
 )
 
 val nullForDefaultAppPreferences
