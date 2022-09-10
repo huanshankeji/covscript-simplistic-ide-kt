@@ -23,4 +23,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-const val URL = "https://github.com/ShreckYe/covscript-simplistic-ide-kt"
+const val URL = "https://github.com/huanshankeji/covscript-simplistic-ide-kt"
