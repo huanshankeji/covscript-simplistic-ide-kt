@@ -24,4 +24,4 @@ limitations under the License.
 """
 
 const val URL =
-    "https://github.com/ShreckYe/covscript-simplistic-ide-kt"
+    "https://github.com/huanshankeji/covscript-simplistic-ide-kt"
